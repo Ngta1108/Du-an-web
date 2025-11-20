@@ -9,9 +9,12 @@ export const translations = {
     selectFromComputer: "Select from computer",
     
     // Categories
+    aiMagic: "AI Magic",
+    manualTools: "Manual Tools",
     adjustments: "Light & Color",
     effects: "Effects",
     transform: "Transform",
+    proTools: "Pro Tools", // New
     tools: "Tools",
     reset: "Reset",
     
@@ -25,6 +28,12 @@ export const translations = {
     sepia: "Sepia",
     invert: "Invert",
     vignette: "Vignette",
+    
+    // Pro Tools
+    temperature: "Temperature",
+    noise: "Noise / Grain",
+    pixelate: "Pixelate",
+    threshold: "Threshold",
     
     rotate: "Rotate",
     flipX: "Flip X",
@@ -51,7 +60,7 @@ export const translations = {
     noImageSelected: "No image selected",
     switchToLight: "Switch to Light Mode",
     switchToDark: "Switch to Dark Mode",
-    switchLang: "VN", // Label to switch TO Vietnamese
+    switchLang: "VN", 
     analyzingError: "Could not analyze image.",
     defaultSuggestion1: "Try adjusting brightness manually.",
     defaultSuggestion2: "Experiment with contrast.",
@@ -59,7 +68,27 @@ export const translations = {
     // Auto Enhance
     applyAi: "Apply AI Adjustments",
     aiApplied: "AI Enhancements Applied!",
-    confidence: "AI Confidence"
+    confidence: "AI Confidence",
+
+    // History
+    undo: "Undo",
+    redo: "Redo",
+    resetAll: "Reset All",
+
+    // New Agents
+    agentEnhancer: "Enhancer",
+    agentEnhancerDesc: "Auto-adjust light & color",
+    agentPrompt: "Prompt Gen",
+    agentPromptDesc: "Generate prompt from image",
+    backToTools: "Back to Tools",
+    
+    // Prompt Gen
+    generatePromptBtn: "Generate Prompt",
+    generating: "Dreaming up prompt...",
+    promptResult: "Generated Prompt",
+    promptDesc: "AI will analyze this image and write a detailed text prompt compatible with Midjourney or Stable Diffusion.",
+    copyToClipboard: "Copy to Clipboard",
+    copied: "Copied!"
   },
   vi: {
     appTitle: "SmartLens AI",
@@ -70,9 +99,12 @@ export const translations = {
     selectFromComputer: "Chọn từ máy tính",
     
     // Categories
+    aiMagic: "AI Magic",
+    manualTools: "Thủ công",
     adjustments: "Ánh sáng & Màu",
     effects: "Hiệu ứng",
     transform: "Biến đổi",
+    proTools: "Chuyên nghiệp", // New
     tools: "Công cụ",
     reset: "Đặt lại",
     
@@ -86,6 +118,12 @@ export const translations = {
     sepia: "Màu xưa cũ",
     invert: "Đảo ngược màu",
     vignette: "Làm tối góc",
+    
+    // Pro Tools
+    temperature: "Nhiệt độ màu",
+    noise: "Nhiễu hạt (Noise)",
+    pixelate: "Điểm ảnh (Pixelate)",
+    threshold: "Ngưỡng (Threshold)",
     
     rotate: "Xoay",
     flipX: "Lật ngang",
@@ -112,7 +150,7 @@ export const translations = {
     noImageSelected: "Chưa chọn ảnh",
     switchToLight: "Chuyển sang chế độ sáng",
     switchToDark: "Chuyển sang chế độ tối",
-    switchLang: "EN", // Label to switch TO English
+    switchLang: "EN", 
     analyzingError: "Không thể phân tích ảnh.",
     defaultSuggestion1: "Thử điều chỉnh độ sáng thủ công.",
     defaultSuggestion2: "Thử thay đổi độ tương phản.",
@@ -120,7 +158,27 @@ export const translations = {
     // Auto Enhance
     applyAi: "Áp dụng thông số AI",
     aiApplied: "Đã áp dụng tối ưu hóa!",
-    confidence: "Độ tin cậy AI"
+    confidence: "Độ tin cậy AI",
+
+    // History
+    undo: "Hoàn tác",
+    redo: "Làm lại",
+    resetAll: "Đặt lại tất cả",
+
+    // New Agents
+    agentEnhancer: "Tối ưu ảnh",
+    agentEnhancerDesc: "Tự động chỉnh màu & ánh sáng",
+    agentPrompt: "Tạo Prompt",
+    agentPromptDesc: "Tạo prompt từ hình ảnh",
+    backToTools: "Quay lại",
+    
+    // Prompt Gen
+    generatePromptBtn: "Tạo Prompt",
+    generating: "Đang sáng tạo...",
+    promptResult: "Prompt Gợi ý",
+    promptDesc: "AI sẽ phân tích bức ảnh này và viết ra một đoạn mô tả chi tiết (prompt) dùng cho Midjourney hoặc Stable Diffusion.",
+    copyToClipboard: "Sao chép",
+    copied: "Đã chép!"
   }
 };
 

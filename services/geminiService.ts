@@ -71,3 +71,35 @@ export const analyzeImage = async (base64Image: string, language: Language): Pro
     };
   }
 };
+
+export const generateImagePrompt = async (base64Image: string, language: Language): Promise<string> => {
+  try {
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+    
+    const prompt = language === 'vi'
+      ? "Hãy đóng vai một chuyên gia Prompt Engineering cho AI Art (Midjourney/Stable Diffusion). Hãy nhìn bức ảnh này và viết ra một text prompt thật chi tiết bằng tiếng Anh để tái tạo lại bức ảnh này. Bao gồm chi tiết về chủ thể, ánh sáng, phong cách nghệ thuật, góc máy, và vibe. Chỉ trả về nội dung prompt."
+      : "Act as an expert AI Art Prompt Engineer (Midjourney/Stable Diffusion). Analyze this image and write a detailed text prompt in English to recreate this image. Include details about subject, lighting, art style, camera angle, and vibe. Return only the prompt text.";
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: 'image/png',
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
+      },
+    });
+
+    return response.text || "Failed to generate prompt.";
+  } catch (error) {
+    console.error("Prompt generation failed:", error);
+    return "Error generating prompt.";
+  }
+};

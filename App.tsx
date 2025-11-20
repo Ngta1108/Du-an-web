@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Upload, Download, Zap, Moon, Sun } from 'lucide-react';
+
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Upload, Download, Zap, Moon, Sun, Undo2, Redo2, RotateCcw } from 'lucide-react';
 import { FilterControls } from './components/FilterControls';
 import { CanvasEditor } from './components/CanvasEditor';
 import { AIPanel } from './components/AIPanel';
-import { FilterState, DEFAULT_FILTERS } from './types';
+import { FilterState, DEFAULT_FILTERS, HistogramData } from './types';
 import { translations, Language } from './translations';
 
 const App: React.FC = () => {
@@ -12,6 +13,11 @@ const App: React.FC = () => {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
+  const [histogramData, setHistogramData] = useState<HistogramData | null>(null);
+  
+  // History State
+  const [history, setHistory] = useState<FilterState[]>([DEFAULT_FILTERS]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   
   // Crop State
   const [isCropping, setIsCropping] = useState(false);
@@ -22,6 +28,45 @@ const App: React.FC = () => {
 
   const t = translations[language];
 
+  // --- History Management ---
+  
+  const handleAddToHistory = useCallback(() => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(filters);
+    
+    if (newHistory.length > 50) {
+      newHistory.shift();
+    } else {
+      setHistoryIndex(newHistory.length - 1);
+    }
+    setHistory(newHistory);
+  }, [filters, history, historyIndex]);
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setFilters(history[newIndex]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setFilters(history[newIndex]);
+    }
+  };
+
+  const handleResetAll = () => {
+    setFilters(DEFAULT_FILTERS);
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(DEFAULT_FILTERS);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -30,9 +75,12 @@ const App: React.FC = () => {
         if (typeof e.target?.result === 'string') {
           setImageSrc(e.target.result);
           setFilters(DEFAULT_FILTERS); 
+          setHistory([DEFAULT_FILTERS]); 
+          setHistoryIndex(0);
           setProcessedImage(null);
           setIsCropping(false);
           setCropParams({ zoom: 1, aspect: null });
+          setHistogramData(null);
         }
       };
       reader.readAsDataURL(file);
@@ -57,10 +105,12 @@ const App: React.FC = () => {
       setImageSrc(base64);
       setIsCropping(false);
       setCropParams({ zoom: 1, aspect: null });
+      setHistory([filters]); 
+      setHistoryIndex(0);
     } else {
       setProcessedImage(base64);
     }
-  }, []);
+  }, [filters]);
 
   const handleApplyCrop = () => {
     setCropTrigger(prev => prev + 1);
@@ -79,7 +129,6 @@ const App: React.FC = () => {
       <div className="h-full w-full flex flex-col bg-rose-50 dark:bg-[#050505] text-gray-900 dark:text-gray-100 transition-colors duration-500 font-sans">
         
         {/* === NAVBAR === */}
-        {/* Light Mode: Floating Pill | Dark Mode: Full Width Sharp Glass */}
         <div className="pt-4 px-6 pb-2 dark:pt-0 dark:px-0 dark:pb-0 z-50">
           <nav className={`
             flex items-center justify-between 
@@ -95,10 +144,7 @@ const App: React.FC = () => {
             <div className="flex items-center gap-5">
               <div className="flex items-center gap-3 group cursor-pointer">
                 <div className="relative">
-                  {/* Glow Effect */}
                   <div className="absolute inset-0 bg-pink-400 dark:bg-cyan-500 blur-lg opacity-0 group-hover:opacity-40 transition-opacity duration-500 rounded-full"></div>
-                  
-                  {/* Icon Container */}
                   <div className={`
                     relative w-9 h-9 flex items-center justify-center 
                     transition-all duration-300
@@ -120,10 +166,8 @@ const App: React.FC = () => {
                 </h1>
               </div>
               
-              {/* Divider */}
               <div className="hidden md:block h-5 w-px bg-gray-300 dark:bg-gray-800 mx-2"></div>
               
-              {/* Menu Items */}
               <div className="hidden md:flex items-center gap-2">
                   {['File', 'View', 'Export'].map((item) => (
                     <button key={item} className={`
@@ -140,7 +184,6 @@ const App: React.FC = () => {
 
             {/* Right Actions */}
             <div className="flex items-center gap-3">
-              {/* Toggles Container */}
               <div className={`
                 flex items-center p-1 gap-1
                 ${isDarkMode 
@@ -219,13 +262,11 @@ const App: React.FC = () => {
           {/* Background Patterns */}
           <div className="absolute inset-0 pointer-events-none z-0">
              {isDarkMode ? (
-               /* Dark Mode: Cyber Grid */
                <>
                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
                  <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_50%_50%,rgba(6,182,212,0.05),transparent)]"></div>
                </>
              ) : (
-               /* Light Mode: Cute Dots */
                <>
                  <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-70"></div>
                  <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-pink-50/50 to-transparent"></div>
@@ -233,7 +274,7 @@ const App: React.FC = () => {
              )}
           </div>
 
-          {/* Left Sidebar - Tools */}
+          {/* Left Sidebar - Tools & AI */}
           <aside className={`
              w-80 z-20 transition-transform duration-300 backdrop-blur-md
              border-r border-white/60 dark:border-white/5
@@ -243,13 +284,21 @@ const App: React.FC = () => {
             <FilterControls 
               filters={filters} 
               setFilters={setFilters} 
-              onReset={() => setFilters(DEFAULT_FILTERS)}
+              onReset={handleResetAll}
               t={t}
+              language={language}
               isCropping={isCropping}
               setIsCropping={setIsCropping}
               cropParams={cropParams}
               setCropParams={setCropParams}
               onApplyCrop={handleApplyCrop}
+              onAddToHistory={handleAddToHistory}
+              currentImageBase64={processedImage}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              canUndo={historyIndex > 0}
+              canRedo={historyIndex < history.length - 1}
+              histogramData={histogramData}
             />
           </aside>
 
@@ -265,6 +314,7 @@ const App: React.FC = () => {
                     isCropping={isCropping}
                     cropParams={cropParams}
                     cropTrigger={cropTrigger}
+                    onHistogramData={setHistogramData}
                   />
                 ) : (
                   /* Empty State */
@@ -303,21 +353,7 @@ const App: React.FC = () => {
             </div>
           </main>
 
-          {/* Right Sidebar - AI */}
-          <aside className={`
-             w-80 z-20 backdrop-blur-md
-             border-l border-white/60 dark:border-white/5
-             bg-white/60 dark:bg-[#0A0A0A]/90
-             ${isDarkMode ? '' : 'rounded-tr-3xl'}
-          `}>
-            <AIPanel 
-              currentImageBase64={processedImage} 
-              t={t}
-              language={language}
-              setFilters={setFilters}
-            />
-          </aside>
-
+          {/* Right Sidebar Removed */}
         </div>
       </div>
     </div>
