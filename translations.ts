@@ -98,6 +98,14 @@ export const translations = {
     zoomIn: "Zoom In",
     zoomOut: "Zoom Out",
     fitScreen: "Fit to Screen",
+    compare: "Hold to Compare",
+    
+    // Export
+    exportTitle: "Export Options",
+    fileName: "File Name",
+    format: "Format",
+    quality: "Quality",
+    save: "Save Image",
     
     aiAssistant: "AI Assistant",
     poweredBy: "Powered by Gemini 2.5",
@@ -131,6 +139,12 @@ export const translations = {
     agentEnhancerDesc: "Auto-adjust light & color",
     agentPrompt: "Prompt Gen",
     agentPromptDesc: "Generate prompt from image",
+    agentScanner: "Scanner",
+    agentScannerDesc: "Detect objects in image",
+    agentSocial: "Social",
+    agentSocialDesc: "Captions & Hashtags",
+    agentPalette: "Palette",
+    agentPaletteDesc: "Extract colors",
     backToTools: "Back to Tools",
     
     // Prompt Gen
@@ -140,6 +154,27 @@ export const translations = {
     promptDesc: "AI will analyze this image and write a detailed text prompt compatible with Midjourney or Stable Diffusion.",
     copyToClipboard: "Copy to Clipboard",
     copied: "Copied!",
+
+    // Scanner
+    startScan: "Start Object Scan",
+    scanning: "Scanning objects...",
+    scanResult: "Detected Objects",
+    scanDesc: "Gemini will identify main objects in your photo and draw high-tech bounding boxes around them.",
+    noObjects: "No specific objects detected.",
+
+    // Social
+    generateSocial: "Generate Captions",
+    writing: "Writing creative captions...",
+    socialDesc: "Get instant creative captions and hashtags for Instagram, Facebook or TikTok.",
+    captionFun: "Fun",
+    captionDeep: "Deep",
+    captionMinimal: "Minimal",
+
+    // Palette
+    extractColors: "Extract Palette",
+    extracting: "Analyzing colors...",
+    paletteDesc: "Get the 5 dominant colors from your image to use in your designs.",
+    hexCopied: "Hex Copied!",
 
     // Presets
     presetNormal: "Normal",
@@ -254,6 +289,14 @@ export const translations = {
     zoomIn: "Phóng to",
     zoomOut: "Thu nhỏ",
     fitScreen: "Vừa màn hình",
+    compare: "Giữ để so sánh",
+    
+    // Export
+    exportTitle: "Tùy chọn xuất file",
+    fileName: "Tên tệp",
+    format: "Định dạng",
+    quality: "Chất lượng",
+    save: "Lưu ảnh",
     
     aiAssistant: "Trợ lý AI",
     poweredBy: "Hỗ trợ bởi Gemini 2.5",
@@ -287,6 +330,12 @@ export const translations = {
     agentEnhancerDesc: "Tự động chỉnh màu & ánh sáng",
     agentPrompt: "Tạo Prompt",
     agentPromptDesc: "Tạo prompt từ hình ảnh",
+    agentScanner: "Máy quét",
+    agentScannerDesc: "Quét vật thể trong ảnh",
+    agentSocial: "Sống ảo",
+    agentSocialDesc: "Viết Caption & Hashtag",
+    agentPalette: "Bảng màu",
+    agentPaletteDesc: "Trích xuất màu",
     backToTools: "Quay lại",
     
     // Prompt Gen
@@ -296,6 +345,27 @@ export const translations = {
     promptDesc: "AI sẽ phân tích bức ảnh này và viết ra một đoạn mô tả chi tiết (prompt) dùng cho Midjourney hoặc Stable Diffusion.",
     copyToClipboard: "Sao chép",
     copied: "Đã chép!",
+
+    // Scanner
+    startScan: "Quét vật thể",
+    scanning: "Đang quét...",
+    scanResult: "Vật thể tìm thấy",
+    scanDesc: "Gemini sẽ nhận diện các vật thể chính trong ảnh và vẽ khung định vị công nghệ cao (Bounding Box).",
+    noObjects: "Không tìm thấy vật thể rõ ràng.",
+
+    // Social
+    generateSocial: "Viết Caption",
+    writing: "Đang viết...",
+    socialDesc: "Nhận ngay các caption và hashtag 'triệu like' cho Instagram, Facebook hoặc TikTok.",
+    captionFun: "Hài hước",
+    captionDeep: "Sâu sắc",
+    captionMinimal: "Tối giản",
+
+    // Palette
+    extractColors: "Lấy bảng màu",
+    extracting: "Đang trích xuất...",
+    paletteDesc: "Lấy ra 5 màu chủ đạo đẹp nhất từ bức ảnh để dùng cho thiết kế.",
+    hexCopied: "Đã chép!",
 
     // Presets
     presetNormal: "Bình thường",

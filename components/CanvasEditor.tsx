@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings } from '../types';
+import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings, DetectedObject } from '../types';
 import { Translation } from '../translations';
 
 interface CanvasEditorProps {
@@ -31,6 +31,12 @@ interface CanvasEditorProps {
   drawingPaths?: DrawingPath[];
   brushSettings?: BrushSettings;
   onAddDrawingPath?: (path: DrawingPath) => void;
+  
+  // Compare Mode
+  isComparing?: boolean;
+
+  // AI Props
+  detectedObjects?: DetectedObject[];
 }
 
 export const CanvasEditor: React.FC<CanvasEditorProps> = ({ 
@@ -54,7 +60,9 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   onUpdateStickerPosition,
   drawingPaths = [],
   brushSettings,
-  onAddDrawingPath
+  onAddDrawingPath,
+  isComparing = false,
+  detectedObjects = []
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -136,6 +144,18 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       });
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // If Comparing, skip filters and extra layers
+      if (isComparing) {
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((filters.rotate * Math.PI) / 180);
+        if (filters.flipH) ctx.scale(-1, 1);
+        ctx.drawImage(img, -originalWidth / 2, -originalHeight / 2, originalWidth, originalHeight);
+        ctx.restore();
+        // Skip rest of the render loop
+        return;
+      }
 
       // 1. Filters
       const filterString = `
@@ -259,7 +279,38 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
           ctx.restore();
       }
 
-      // 6. STICKERS
+      // 6. DETECTED OBJECTS (Bounding Boxes)
+      if (detectedObjects.length > 0) {
+          ctx.save();
+          detectedObjects.forEach(obj => {
+              // box_2d is [ymin, xmin, ymax, xmax] normalized 0-1000
+              const [ymin, xmin, ymax, xmax] = obj.box_2d;
+              const x = (xmin / 1000) * canvas.width;
+              const y = (ymin / 1000) * canvas.height;
+              const w = ((xmax - xmin) / 1000) * canvas.width;
+              const h = ((ymax - ymin) / 1000) * canvas.height;
+
+              // Draw Box
+              ctx.strokeStyle = '#00d9f9'; // Cyan
+              ctx.lineWidth = 2;
+              ctx.shadowColor = '#00d9f9';
+              ctx.shadowBlur = 10;
+              ctx.strokeRect(x, y, w, h);
+
+              // Draw Label Background
+              ctx.fillStyle = 'rgba(0, 217, 249, 0.2)';
+              ctx.fillRect(x, y, w, h);
+
+              // Draw Label Text
+              const fontSize = Math.max(12, canvas.width / 50);
+              ctx.font = `bold ${fontSize}px "Chakra Petch", sans-serif`;
+              ctx.fillStyle = '#00d9f9';
+              ctx.fillText(obj.label.toUpperCase(), x, y - 5);
+          });
+          ctx.restore();
+      }
+
+      // 7. STICKERS
       stickers.forEach(sticker => {
         ctx.save();
         ctx.font = `${sticker.size}px serif`;
@@ -277,7 +328,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.restore();
       });
 
-      // 7. TEXT LAYERS
+      // 8. TEXT LAYERS
       textLayers.forEach(layer => {
         ctx.save();
         ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}"`;
@@ -295,7 +346,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.restore();
       });
 
-      // 8. FRAMES (On Top)
+      // 9. FRAMES (On Top)
       if (activeFrame && activeFrame !== 'none') {
         ctx.save();
         const w = canvas.width;
@@ -347,7 +398,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.restore();
       }
 
-      // 9. Crop Overlay
+      // 10. Crop Overlay
       if (isCropping) {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -375,7 +426,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       onImageProcessed(canvas.toDataURL('image/png'), false);
     };
 
-  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeStickerId, activeFrame, drawingPaths, isDrawing, currentPath]);
+  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeStickerId, activeFrame, drawingPaths, isDrawing, currentPath, isComparing, detectedObjects]);
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
@@ -388,6 +439,8 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   };
 
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isComparing) return; // Disable interaction during compare
+
     const pos = getCanvasCoordinates(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
@@ -438,6 +491,8 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isComparing) return;
+
     const pos = getCanvasCoordinates(e);
     
     if (isDrawing && brushSettings) {
@@ -455,6 +510,8 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   };
 
   const handleMouseUp = () => {
+      if (isComparing) return;
+
       if (isDrawing && brushSettings && currentPath.length > 1 && onAddDrawingPath) {
           onAddDrawingPath({
               points: currentPath,

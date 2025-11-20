@@ -80,6 +80,16 @@ export interface AnalysisResult {
   filterAdjustments?: Partial<FilterState>;
 }
 
+export interface DetectedObject {
+  label: string;
+  box_2d: [number, number, number, number]; // ymin, xmin, ymax, xmax (0-1000)
+}
+
+export interface SocialContent {
+  captions: string[];
+  hashtags: string[];
+}
+
 export interface HistogramData {
   r: number[];
   g: number[];

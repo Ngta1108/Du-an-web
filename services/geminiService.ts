@@ -1,6 +1,7 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "../translations";
-import { FilterState } from "../types";
+import { FilterState, DetectedObject, SocialContent } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -102,4 +103,116 @@ export const generateImagePrompt = async (base64Image: string, language: Languag
     console.error("Prompt generation failed:", error);
     return "Error generating prompt.";
   }
+};
+
+export const detectObjects = async (base64Image: string): Promise<DetectedObject[]> => {
+  try {
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+    
+    const prompt = "Detect the main objects in this image. Return a JSON list where each item has a 'label' (string) and 'box_2d' (array of 4 integers [ymin, xmin, ymax, xmax] normalized to 0-1000).";
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { inlineData: { data: base64Data, mimeType: 'image/png' } },
+          { text: prompt },
+        ],
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    label: { type: Type.STRING },
+                    box_2d: { 
+                        type: Type.ARRAY, 
+                        items: { type: Type.INTEGER }
+                    }
+                },
+                required: ["label", "box_2d"]
+            }
+        }
+      }
+    });
+
+    if (response.text) {
+        return JSON.parse(response.text);
+    }
+    return [];
+  } catch (error) {
+    console.error("Object detection failed:", error);
+    return [];
+  }
+};
+
+export const generateSocialCaption = async (base64Image: string, language: Language): Promise<SocialContent> => {
+    try {
+        const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+        
+        const prompt = language === 'vi'
+            ? "Hãy nhìn bức ảnh này và viết 3 dòng trạng thái (caption) cho mạng xã hội (Facebook/Instagram): 1 cái hài hước, 1 cái sâu sắc (deep), và 1 cái tối giản. Kèm theo danh sách 10 hashtag phù hợp. Trả về JSON."
+            : "Look at this image and write 3 social media captions: 1 funny, 1 deep/meaningful, and 1 minimal. Also provide 10 relevant hashtags. Return JSON.";
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64Data, mimeType: 'image/png' } },
+                    { text: prompt },
+                ],
+            },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        captions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["captions", "hashtags"]
+                }
+            }
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        return { captions: [], hashtags: [] };
+    } catch (error) {
+        return { captions: [], hashtags: [] };
+    }
+};
+
+export const extractColorPalette = async (base64Image: string): Promise<string[]> => {
+    try {
+        const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+        const prompt = "Extract the 5 dominant colors from this image. Return a JSON array of hex color strings (e.g., ['#FF0000', ...]).";
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64Data, mimeType: 'image/png' } },
+                    { text: prompt },
+                ],
+            },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                }
+            }
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        return [];
+    } catch (error) {
+        return [];
+    }
 };
