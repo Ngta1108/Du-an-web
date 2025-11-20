@@ -52,7 +52,8 @@ export interface TextLayer {
 
 export interface StickerLayer {
   id: string;
-  content: string; // Emoji character
+  type: 'emoji' | 'image';
+  content: string; // Emoji character OR Base64 string
   x: number;
   y: number;
   size: number;

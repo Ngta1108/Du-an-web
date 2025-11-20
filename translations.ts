@@ -108,7 +108,7 @@ export const translations = {
     save: "Save Image",
     
     aiAssistant: "AI Assistant",
-    poweredBy: "Powered by Gemini 2.5",
+    poweredBy: "Powered by Gemini 2.5 & Imagen",
     analyzeButton: "Analyze & Auto-Enhance",
     reAnalyze: "Re-analyze",
     analyzing: "Calculating optimal settings...",
@@ -145,6 +145,8 @@ export const translations = {
     agentSocialDesc: "Captions & Hashtags",
     agentPalette: "Palette",
     agentPaletteDesc: "Extract colors",
+    agentSticker: "Sticker",
+    agentStickerDesc: "Create sticker from photo",
     backToTools: "Back to Tools",
     
     // Prompt Gen
@@ -175,6 +177,13 @@ export const translations = {
     extracting: "Analyzing colors...",
     paletteDesc: "Get the 5 dominant colors from your image to use in your designs.",
     hexCopied: "Hex Copied!",
+
+    // Sticker Maker
+    createSticker: "Create Sticker",
+    creatingSticker: "Drawing sticker...",
+    stickerDesc: "Turn the main subject of your photo into a cute vector sticker using Imagen.",
+    stickerResult: "Your Sticker",
+    addToCanvas: "Add to Photo",
 
     // Presets
     presetNormal: "Normal",
@@ -299,7 +308,7 @@ export const translations = {
     save: "Lưu ảnh",
     
     aiAssistant: "Trợ lý AI",
-    poweredBy: "Hỗ trợ bởi Gemini 2.5",
+    poweredBy: "Hỗ trợ bởi Gemini 2.5 & Imagen",
     analyzeButton: "Phân tích & Tối ưu",
     reAnalyze: "Phân tích lại",
     analyzing: "Đang tính toán thông số tối ưu...",
@@ -336,6 +345,8 @@ export const translations = {
     agentSocialDesc: "Viết Caption & Hashtag",
     agentPalette: "Bảng màu",
     agentPaletteDesc: "Trích xuất màu",
+    agentSticker: "Tạo Sticker",
+    agentStickerDesc: "Biến ảnh thành Sticker",
     backToTools: "Quay lại",
     
     // Prompt Gen
@@ -366,6 +377,13 @@ export const translations = {
     extracting: "Đang trích xuất...",
     paletteDesc: "Lấy ra 5 màu chủ đạo đẹp nhất từ bức ảnh để dùng cho thiết kế.",
     hexCopied: "Đã chép!",
+
+    // Sticker Maker
+    createSticker: "Tạo Sticker",
+    creatingSticker: "Đang vẽ sticker...",
+    stickerDesc: "AI sẽ nhận diện chủ thể trong ảnh và vẽ lại thành một Sticker cute phô mai que.",
+    stickerResult: "Sticker của bạn",
+    addToCanvas: "Dán vào ảnh",
 
     // Presets
     presetNormal: "Bình thường",

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Sparkles, Bot, Loader2, Wand2, RotateCcw, CheckCircle2, Sliders, FileText, Copy, Image as ImageIcon, ChevronLeft, Brain, MessageSquareHeart, Plus, ScanEye, Share2, Palette as PaletteIcon, Hash } from 'lucide-react';
-import { analyzeImage, generateImagePrompt, detectObjects, generateSocialCaption, extractColorPalette } from '../services/geminiService';
+import { Sparkles, Bot, Loader2, Wand2, RotateCcw, CheckCircle2, Sliders, FileText, Copy, Image as ImageIcon, ChevronLeft, Brain, MessageSquareHeart, Plus, ScanEye, Share2, Palette as PaletteIcon, Hash, Sticker } from 'lucide-react';
+import { analyzeImage, generateImagePrompt, detectObjects, generateSocialCaption, extractColorPalette, createStickerFromImage } from '../services/geminiService';
 import { AnalysisResult, FilterState, DetectedObject, SocialContent } from '../types';
 import { Translation, Language } from '../translations';
 
@@ -12,11 +12,12 @@ interface AIPanelProps {
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   onAddToHistory: () => void;
   setDetectedObjects: (objs: DetectedObject[]) => void;
+  onAddSticker?: (content: string) => void;
 }
 
-type AgentType = 'enhancer' | 'promptGen' | 'scanner' | 'social' | 'palette' | null;
+type AgentType = 'enhancer' | 'promptGen' | 'scanner' | 'social' | 'palette' | 'stickerMaker' | null;
 
-export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, language, setFilters, onAddToHistory, setDetectedObjects }) => {
+export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, language, setFilters, onAddToHistory, setDetectedObjects, onAddSticker }) => {
   const [activeAgent, setActiveAgent] = useState<AgentType>(null);
   
   // Enhancer State
@@ -41,6 +42,10 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
   const [colors, setColors] = useState<string[]>([]);
   const [loadingPalette, setLoadingPalette] = useState(false);
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
+
+  // Sticker State
+  const [generatedSticker, setGeneratedSticker] = useState<string | null>(null);
+  const [creatingSticker, setCreatingSticker] = useState(false);
 
   const handleAnalyze = async () => {
     if (!currentImageBase64) return;
@@ -113,6 +118,20 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
       }
   };
 
+  const handleCreateSticker = async () => {
+      if (!currentImageBase64) return;
+      setCreatingSticker(true);
+      setGeneratedSticker(null);
+      try {
+          const res = await createStickerFromImage(currentImageBase64);
+          setGeneratedSticker(res);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setCreatingSticker(false);
+      }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -143,7 +162,6 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
       id: 'enhancer', 
       icon: <Sparkles size={24} />, 
       label: t.agentEnhancer,
-      // Cute: Pink/Violet | Dark: Cyber Cyan
       color: 'from-fuchsia-500 via-pink-500 to-rose-500 shadow-pink-400/40',
       darkColor: 'from-cyan-400 via-blue-500 to-indigo-500 shadow-cyan-500/40'
     },
@@ -151,7 +169,6 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
       id: 'promptGen', 
       icon: <Brain size={24} />, 
       label: t.agentPrompt, 
-      // Cute: Orange/Rose | Dark: Cyber Amber
       color: 'from-orange-400 via-amber-400 to-yellow-400 shadow-orange-400/40',
       darkColor: 'from-amber-300 via-orange-500 to-red-500 shadow-orange-500/40'
     },
@@ -159,7 +176,6 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
         id: 'scanner',
         icon: <ScanEye size={24} />,
         label: t.agentScanner,
-        // Cute: Emerald/Teal | Dark: Cyber Green
         color: 'from-emerald-400 via-teal-400 to-cyan-400 shadow-emerald-400/40',
         darkColor: 'from-emerald-400 via-green-500 to-lime-500 shadow-emerald-500/40'
     },
@@ -167,7 +183,6 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
         id: 'social',
         icon: <MessageSquareHeart size={24} />,
         label: t.agentSocial,
-        // Cute: Blue/Indigo | Dark: Cyber Indigo
         color: 'from-blue-400 via-indigo-400 to-violet-400 shadow-indigo-400/40',
         darkColor: 'from-indigo-400 via-purple-500 to-fuchsia-500 shadow-purple-500/40'
     },
@@ -175,9 +190,15 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
         id: 'palette',
         icon: <PaletteIcon size={24} />,
         label: t.agentPalette,
-        // Cute: Rainbow-ish | Dark: Colorful
         color: 'from-rose-400 via-purple-400 to-blue-400 shadow-purple-400/40',
         darkColor: 'from-pink-500 via-rose-500 to-red-500 shadow-rose-500/40'
+    },
+    {
+        id: 'stickerMaker',
+        icon: <Sticker size={24} />,
+        label: t.agentSticker,
+        color: 'from-yellow-400 via-orange-400 to-red-400 shadow-orange-400/40',
+        darkColor: 'from-yellow-500 via-amber-500 to-orange-600 shadow-amber-500/40'
     }
   ];
 
@@ -242,14 +263,6 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
               </span>
             </button>
           ))}
-          
-          {/* Placeholder for future apps */}
-          <div className="flex flex-col items-center gap-2 group opacity-50 hover:opacity-100 transition-all cursor-default">
-            <div className="w-14 h-14 flex items-center justify-center rounded-[20px] dark:rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-600 group-hover:border-pink-300 dark:group-hover:border-cyan-800 group-hover:text-pink-400 dark:group-hover:text-cyan-700 transition-colors">
-              <Plus size={24} />
-            </div>
-            <span className="text-[9px] font-medium text-gray-400 dark:text-gray-600 dark:font-tech uppercase group-hover:text-pink-400 dark:group-hover:text-cyan-700">More</span>
-          </div>
         </div>
       </div>
     );
@@ -439,6 +452,39 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
                                 ))}
                             </div>
                             <button onClick={handlePalette} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-rose-500 dark:text-gray-600 dark:hover:text-pink-400 bg-transparent hover:bg-rose-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} />{t.reAnalyze}</button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* === AGENT: STICKER MAKER === */}
+            {activeAgent === 'stickerMaker' && (
+                <div className="animate-fade-in space-y-6">
+                    {!generatedSticker && !creatingSticker && (
+                        <WelcomeCard desc={t.stickerDesc} btnText={t.createSticker} onClick={handleCreateSticker} icon={Sticker} gradient="from-yellow-400 to-orange-500 dark:from-amber-500 dark:to-orange-600" />
+                    )}
+                    {creatingSticker && <LoadingState message={t.creatingSticker} />}
+                    {generatedSticker && (
+                        <div className="animate-slide-up space-y-6">
+                            <div className="p-6 bg-orange-50 dark:bg-amber-950/20 border border-orange-100 dark:border-amber-500/30 rounded-2xl dark:rounded-md text-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-orange-400/30 animate-pulse"></div>
+                                <h4 className="text-sm font-bold text-orange-700 dark:text-orange-300 dark:font-tech uppercase mb-4">{t.stickerResult}</h4>
+                                <div className="flex justify-center">
+                                    <img src={generatedSticker} alt="Generated Sticker" className="w-48 h-48 object-contain drop-shadow-xl" />
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    if (onAddSticker && generatedSticker) {
+                                        onAddSticker(generatedSticker);
+                                        setActiveAgent(null); // Close panel and go back to canvas
+                                    }
+                                }} 
+                                className="w-full py-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg hover:-translate-y-1 dark:font-tech dark:uppercase"
+                            >
+                                <CheckCircle2 size={18} /> {t.addToCanvas}
+                            </button>
+                            <button onClick={handleCreateSticker} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-orange-500 dark:text-gray-600 dark:hover:text-orange-400 bg-transparent hover:bg-orange-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} />{t.reAnalyze}</button>
                         </div>
                     )}
                 </div>

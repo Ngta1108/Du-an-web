@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, Download, Zap, Moon, Sun, ZoomIn, ZoomOut, Maximize, ImagePlus, Eye, X, Save } from 'lucide-react';
 import { FilterControls } from './components/FilterControls';
@@ -239,11 +240,13 @@ const App: React.FC = () => {
   const handleUpdateTextLayer = (id: string, updates: Partial<TextLayer>) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
   const handleDeleteText = (id: string) => { setTextLayers(prev => prev.filter(l => l.id !== id)); if (activeTextId === id) setActiveTextId(null); };
 
-  const handleAddSticker = (emoji: string) => {
+  const handleAddSticker = (content: string) => {
      setBrushSettings(prev => ({ ...prev, isEnabled: false }));
+     const isImage = content.startsWith('data:image');
      const newSticker: StickerLayer = {
          id: Date.now().toString(),
-         content: emoji,
+         type: isImage ? 'image' : 'emoji',
+         content: content,
          x: 100 + stickers.length * 10,
          y: 100 + stickers.length * 10,
          size: 80

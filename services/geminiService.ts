@@ -216,3 +216,46 @@ export const extractColorPalette = async (base64Image: string): Promise<string[]
         return [];
     }
 };
+
+export const createStickerFromImage = async (base64Image: string): Promise<string | null> => {
+    try {
+        const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+
+        // Step 1: Analyze image to get subject description using Flash
+        const analysisPrompt = "Describe the main subject of this image in 5-7 words for a sticker prompt (e.g., 'a cute sleeping cat'). Return only the description.";
+        const analysisResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64Data, mimeType: 'image/png' } },
+                    { text: analysisPrompt },
+                ],
+            },
+        });
+        
+        const subjectDescription = analysisResponse.text || "a cute character";
+
+        // Step 2: Generate sticker using Imagen
+        const stickerPrompt = `A vector art sticker of ${subjectDescription}. White outline, high quality, flat design, isolated on white background, vibrant colors, cute style.`;
+        
+        const imageResponse = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: stickerPrompt,
+            config: {
+                numberOfImages: 1,
+                aspectRatio: '1:1',
+                outputMimeType: 'image/png',
+            },
+        });
+
+        const generatedBase64 = imageResponse.generatedImages?.[0]?.image?.imageBytes;
+        if (generatedBase64) {
+            return `data:image/png;base64,${generatedBase64}`;
+        }
+        return null;
+
+    } catch (error) {
+        console.error("Sticker generation failed:", error);
+        return null;
+    }
+};

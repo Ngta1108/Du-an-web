@@ -75,6 +75,9 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
 
+  // Image Cache for Stickers to prevent reloading
+  const stickerImagesRef = useRef<{[key: string]: HTMLImageElement}>({});
+
   // Track previous trigger to only run on change
   const prevTriggerRef = useRef(cropTrigger);
 
@@ -96,6 +99,18 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     
     return { x: cropX, y: cropY, w: cropW, h: cropH };
   };
+
+  // Preload sticker images
+  useEffect(() => {
+    stickers.forEach(sticker => {
+        if (sticker.type === 'image' && !stickerImagesRef.current[sticker.id]) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = sticker.content;
+            stickerImagesRef.current[sticker.id] = img;
+        }
+    });
+  }, [stickers]);
 
   useEffect(() => {
     if (!imageSrc || !canvasRef.current) return;
@@ -313,16 +328,28 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       // 7. STICKERS
       stickers.forEach(sticker => {
         ctx.save();
-        ctx.font = `${sticker.size}px serif`;
-        ctx.textBaseline = 'middle';
-        ctx.textAlign = 'center';
-        ctx.fillText(sticker.content, sticker.x, sticker.y);
+        
+        if (sticker.type === 'image') {
+            const sImg = stickerImagesRef.current[sticker.id];
+            if (sImg && sImg.complete) {
+                const aspect = sImg.width / sImg.height;
+                const drawW = sticker.size * 2; // Image stickers tend to need slightly more scale to match emoji size perception
+                const drawH = drawW / aspect;
+                ctx.drawImage(sImg, sticker.x - drawW/2, sticker.y - drawH/2, drawW, drawH);
+            }
+        } else {
+            // Emoji
+            ctx.font = `${sticker.size}px serif`;
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillText(sticker.content, sticker.x, sticker.y);
+        }
         
         if (activeStickerId === sticker.id) {
              ctx.strokeStyle = '#f472b6'; // Pink border for active sticker
              ctx.lineWidth = 2; 
              ctx.setLineDash([5, 5]);
-             const boxSize = sticker.size * 1.2;
+             const boxSize = sticker.size * (sticker.type === 'image' ? 2 : 1.2);
              ctx.strokeRect(sticker.x - boxSize/2, sticker.y - boxSize/2, boxSize, boxSize);
         }
         ctx.restore();
@@ -475,7 +502,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     if (onUpdateStickerPosition && onSelectSticker) {
       for (let i = stickers.length - 1; i >= 0; i--) {
         const s = stickers[i];
-        const halfSize = s.size / 2;
+        const halfSize = (s.size * (s.type === 'image' ? 2 : 1)) / 2; // Adjusted click target for image stickers
         if (pos.x >= s.x - halfSize && pos.x <= s.x + halfSize && pos.y >= s.y - halfSize && pos.y <= s.y + halfSize) {
            onSelectSticker(s.id);
            if (onSelectText) onSelectText(null); 
