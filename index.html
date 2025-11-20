@@ -5,15 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartLens AI Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['"Be Vietnam Pro"', 'sans-serif'],
+              tech: ['"Chakra Petch"', 'sans-serif'],
+            },
             colors: {
               gray: {
-                750: '#2d3748',
                 850: '#1a202c',
-                950: '#0d1117',
+                900: '#111827',
+                950: '#050505', // Deep void dark
+              },
+              cyan: {
+                450: '#00d9f9', // Neon cyan
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.3s ease-out',
+              'slide-up': 'slideUp 0.4s ease-out',
+              'glow': 'glow 2s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(10px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              glow: {
+                'from': { boxShadow: '0 0 2px #0ea5e9, 0 0 4px #0ea5e9' },
+                'to': { boxShadow: '0 0 8px #00d9f9, 0 0 16px #00d9f9' },
               }
             }
           }
@@ -31,8 +59,91 @@
   }
 }
 </script>
+<style>
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 0px; /* Sharp corners for tech look */
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  /* === LIGHT MODE SLIDER (CUTE) === */
+  input[type=range] {
+    -webkit-appearance: none; 
+    background: transparent; 
+  }
+  
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%; /* Perfectly round */
+    background: #ffffff;
+    border: 4px solid #f472b6; /* pink-400 */
+    cursor: pointer;
+    margin-top: -7px; 
+    box-shadow: 0 2px 5px rgba(244, 114, 182, 0.4);
+    transition: all 0.2s ease;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 4px 8px rgba(244, 114, 182, 0.6);
+  }
+
+  input[type=range]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: #fce7f3; /* pink-100 */
+    border-radius: 10px;
+  }
+
+  /* === DARK MODE SLIDER (TECH/CYBER) === */
+  .dark input[type=range]::-webkit-slider-thumb {
+    height: 16px;
+    width: 8px; /* Rectangular/Bar */
+    border-radius: 1px;
+    background: #0ea5e9; /* sky-500 */
+    border: 1px solid #e0f2fe;
+    margin-top: -7px; 
+    box-shadow: 0 0 8px #0ea5e9, 0 0 4px #ffffff; /* Neon glow */
+  }
+
+  .dark input[type=range]::-webkit-slider-thumb:hover {
+    transform: scaleY(1.2);
+    background: #fff;
+    box-shadow: 0 0 12px #0ea5e9, 0 0 8px #ffffff;
+  }
+  
+  .dark input[type=range]::-webkit-slider-runnable-track {
+    background: #1e293b; /* Slate-800 */
+    height: 2px; /* Very thin laser line */
+    border-radius: 0;
+  }
+
+  input[type=range]:focus {
+    outline: none; 
+  }
+</style>
 </head>
-  <body class="bg-gray-950 text-white antialiased overflow-hidden">
+  <body class="antialiased overflow-hidden bg-rose-50 dark:bg-[#050505] font-sans text-gray-900 dark:text-white selection:bg-pink-300 dark:selection:bg-cyan-500 selection:text-white transition-colors duration-500">
     <div id="root"></div>
   </body>
 </html>
