@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { FilterState, HistogramData } from '../types';
+import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType } from '../types';
 import { Translation } from '../translations';
 
 interface CanvasEditorProps {
@@ -12,6 +12,18 @@ interface CanvasEditorProps {
   cropParams?: { zoom: number; aspect: number | null };
   cropTrigger?: number;
   onHistogramData?: (data: HistogramData) => void;
+  viewZoom?: number;
+  
+  // Text Props
+  textLayers?: TextLayer[];
+  activeTextId?: string | null;
+  onSelectText?: (id: string | null) => void;
+  onUpdateTextPosition?: (id: string, x: number, y: number) => void;
+
+  // Creative Props
+  stickers?: StickerLayer[];
+  activeFrame?: FrameType;
+  onUpdateStickerPosition?: (id: string, x: number, y: number) => void;
 }
 
 export const CanvasEditor: React.FC<CanvasEditorProps> = ({ 
@@ -22,15 +34,26 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   isCropping = false,
   cropParams = { zoom: 1, aspect: null },
   cropTrigger = 0,
-  onHistogramData
+  onHistogramData,
+  viewZoom = 1,
+  textLayers = [],
+  activeTextId = null,
+  onSelectText,
+  onUpdateTextPosition,
+  stickers = [],
+  activeFrame = 'none',
+  onUpdateStickerPosition
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   
+  // Dragging State (Shared for Text and Stickers)
+  const [dragTarget, setDragTarget] = useState<{ type: 'text' | 'sticker', id: string } | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0, scaleX: 1, scaleY: 1 });
+
   // Track previous trigger to only run on change
   const prevTriggerRef = useRef(cropTrigger);
 
-  // Function to calculate the centered crop rectangle
   const getCropRect = (width: number, height: number, zoom: number, aspect: number | null) => {
     let cropW = width / zoom;
     let cropH = height / zoom;
@@ -50,12 +73,11 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     return { x: cropX, y: cropY, w: cropW, h: cropH };
   };
 
-  // Initialize and draw image
   useEffect(() => {
-    if (!imageSrc || !canvasRef.current || !containerRef.current) return;
+    if (!imageSrc || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Optimization
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
     const img = new Image();
@@ -63,47 +85,43 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     img.src = imageSrc;
     
     img.onload = () => {
-      // Perform Actual Crop if triggered
+      // --- Crop Execution ---
       if (cropTrigger > prevTriggerRef.current) {
         prevTriggerRef.current = cropTrigger;
-        
-        // Calculate crop coords on original image
         const rect = getCropRect(img.naturalWidth, img.naturalHeight, cropParams.zoom, cropParams.aspect);
-        
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = rect.w;
         tempCanvas.height = rect.h;
         const tempCtx = tempCanvas.getContext('2d');
         
         if (tempCtx) {
-          tempCtx.drawImage(
-            img, 
-            rect.x, rect.y, rect.w, rect.h, // Source
-            0, 0, rect.w, rect.h            // Dest
-          );
+          tempCtx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
           const croppedBase64 = tempCanvas.toDataURL('image/png');
-          onImageProcessed(croppedBase64, true); // true = isCropResult
-          return; // Stop here
+          onImageProcessed(croppedBase64, true);
+          return;
         }
       }
-
-      // --- Standard Rendering ---
 
       const isVertical = filters.rotate % 180 !== 0;
       const originalWidth = img.naturalWidth;
       const originalHeight = img.naturalHeight;
-
       const targetWidth = isVertical ? originalHeight : originalWidth;
       const targetHeight = isVertical ? originalWidth : originalHeight;
 
-      // High DPI support
       canvas.width = targetWidth;
       canvas.height = targetHeight;
 
-      // Clear
+      const rect = canvas.getBoundingClientRect();
+      setCanvasDimensions({
+        width: targetWidth,
+        height: targetHeight,
+        scaleX: targetWidth / rect.width,
+        scaleY: targetHeight / rect.height
+      });
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 1. Basic CSS Filters
+      // 1. Filters
       const filterString = `
         brightness(${filters.brightness}%)
         contrast(${filters.contrast}%)
@@ -116,216 +134,276 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       `;
       ctx.filter = filterString;
 
-      // 2. Geometry Transform
+      // 2. Transform & Draw Image
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate((filters.rotate * Math.PI) / 180);
-      if (filters.flipH) {
-        ctx.scale(-1, 1);
-      }
-
-      ctx.drawImage(
-        img, 
-        -originalWidth / 2, 
-        -originalHeight / 2, 
-        originalWidth, 
-        originalHeight
-      );
-
+      if (filters.flipH) ctx.scale(-1, 1);
+      ctx.drawImage(img, -originalWidth / 2, -originalHeight / 2, originalWidth, originalHeight);
       ctx.restore();
       ctx.filter = 'none';
 
-      // 3. Advanced "Pro" Filters (Software Rendering)
-      // We need ImageData for Noise, Threshold, Pixelate
+      // 3. Pro Filters (Software)
       const hasSoftwareFilters = filters.noise > 0 || filters.pixelate > 0 || filters.threshold > 0;
       const needsHistogram = !!onHistogramData;
-
       if (hasSoftwareFilters || needsHistogram) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
         const len = data.length;
-
-        // Histogram Buckets
         const rCounts = new Array(256).fill(0);
         const gCounts = new Array(256).fill(0);
         const bCounts = new Array(256).fill(0);
 
-        // --- PIXEL PROCESSING LOOP ---
         for (let i = 0; i < len; i += 4) {
           let r = data[i];
           let g = data[i + 1];
           let b = data[i + 2];
-          // a = data[i + 3];
 
-          // A. PIXELATE
           if (filters.pixelate > 0) {
             const pixelIdx = i / 4;
             const x = pixelIdx % canvas.width;
             const y = Math.floor(pixelIdx / canvas.width);
             const size = Math.max(2, filters.pixelate);
-            
             const blkX = Math.floor(x / size) * size;
             const blkY = Math.floor(y / size) * size;
-            
-            // If not the top-left pixel of the block, we don't compute, we just wait for the block fill?
-            // Actually, simpler logic for single pass:
-            // Map current x,y to the reference pixel
             const refIdx = (blkY * canvas.width + blkX) * 4;
             if (refIdx < len) {
-              r = data[refIdx];
-              g = data[refIdx + 1];
-              b = data[refIdx + 2];
-              // Write back immediately so noise/threshold uses pixelated value
-              data[i] = r;
-              data[i+1] = g;
-              data[i+2] = b;
+              r = data[refIdx]; g = data[refIdx + 1]; b = data[refIdx + 2];
+              data[i] = r; data[i+1] = g; data[i+2] = b;
             }
           }
-
-          // B. NOISE
           if (filters.noise > 0) {
             const noise = (Math.random() - 0.5) * (filters.noise * 1.5);
             r = Math.min(255, Math.max(0, r + noise));
             g = Math.min(255, Math.max(0, g + noise));
             b = Math.min(255, Math.max(0, b + noise));
           }
-
-          // C. THRESHOLD
           if (filters.threshold > 0) {
-            // Convert to grayscale first
             const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
             const val = gray >= filters.threshold ? 255 : 0;
-            r = val;
-            g = val;
-            b = val;
+            r = val; g = val; b = val;
           }
 
-          // Update Data
-          data[i] = r;
-          data[i + 1] = g;
-          data[i + 2] = b;
-
-          // Histogram Data Collection
-          if (needsHistogram) {
-             rCounts[r]++;
-             gCounts[g]++;
-             bCounts[b]++;
-          }
+          data[i] = r; data[i+1] = g; data[i+2] = b;
+          if (needsHistogram) { rCounts[r]++; gCounts[g]++; bCounts[b]++; }
         }
-
-        // Apply changes
         ctx.putImageData(imageData, 0, 0);
-
-        // Emit Histogram
-        if (onHistogramData) {
-          onHistogramData({ r: rCounts, g: gCounts, b: bCounts });
-        }
+        if (onHistogramData) onHistogramData({ r: rCounts, g: gCounts, b: bCounts });
       }
 
-      // 4. Temperature / Tint Overlay (Using Blending Mode)
+      // 4. Temperature & Vignette
       if (filters.temperature !== 0) {
         ctx.save();
         ctx.globalCompositeOperation = filters.temperature > 0 ? 'overlay' : 'color-burn'; 
-        // Simple logic: Warm = Orange Overlay, Cool = Blue Overlay
-        if (filters.temperature > 0) {
-           ctx.fillStyle = `rgba(255, 160, 0, ${filters.temperature / 200})`; // Warm Orange
-        } else {
-           ctx.fillStyle = `rgba(0, 100, 255, ${Math.abs(filters.temperature) / 200})`; // Cool Blue
-        }
+        ctx.fillStyle = filters.temperature > 0 ? `rgba(255, 160, 0, ${filters.temperature / 200})` : `rgba(0, 100, 255, ${Math.abs(filters.temperature) / 200})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
       }
-
-      // 5. Vignette (Software Render)
       if (filters.vignette > 0) {
         ctx.save();
         ctx.globalCompositeOperation = 'multiply'; 
-        
         const radius = Math.max(canvas.width, canvas.height) * 0.8;
-        const gradient = ctx.createRadialGradient(
-          canvas.width / 2, 
-          canvas.height / 2, 
-          0, 
-          canvas.width / 2, 
-          canvas.height / 2, 
-          radius
-        );
-        const intensity = filters.vignette / 100;
-        
+        const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, radius);
         gradient.addColorStop(0, 'rgba(0,0,0,0)');
-        gradient.addColorStop(0.5 - (intensity * 0.1), 'rgba(0,0,0,0)');
-        gradient.addColorStop(1, `rgba(0,0,0,${intensity})`);
-
+        gradient.addColorStop(1, `rgba(0,0,0,${filters.vignette/100})`);
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
       }
 
-      // 6. Crop Overlay (if cropping)
+      // 5. STICKERS (Below Text, Above filters)
+      stickers.forEach(sticker => {
+        ctx.save();
+        ctx.font = `${sticker.size}px serif`;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        ctx.fillText(sticker.content, sticker.x, sticker.y);
+        ctx.restore();
+      });
+
+      // 6. TEXT LAYERS
+      textLayers.forEach(layer => {
+        ctx.save();
+        ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}"`;
+        ctx.fillStyle = layer.color;
+        ctx.textBaseline = 'top';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(layer.text, layer.x, layer.y);
+        
+        if (activeTextId === layer.id) {
+          const metrics = ctx.measureText(layer.text);
+          ctx.strokeStyle = '#00d9f9'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+          ctx.strokeRect(layer.x - 5, layer.y - 5, metrics.width + 10, layer.fontSize * 1.2 + 10);
+        }
+        ctx.restore();
+      });
+
+      // 7. FRAMES (On Top)
+      if (activeFrame && activeFrame !== 'none') {
+        ctx.save();
+        const w = canvas.width;
+        const h = canvas.height;
+        const borderWidth = Math.min(w, h) * 0.05;
+
+        if (activeFrame === 'white') {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = borderWidth;
+          ctx.strokeRect(borderWidth/2, borderWidth/2, w - borderWidth, h - borderWidth);
+        } else if (activeFrame === 'neon') {
+          ctx.strokeStyle = '#00d9f9';
+          ctx.lineWidth = borderWidth / 2;
+          ctx.shadowColor = '#00d9f9';
+          ctx.shadowBlur = 20;
+          ctx.strokeRect(borderWidth, borderWidth, w - borderWidth*2, h - borderWidth*2);
+        } else if (activeFrame === 'polaroid') {
+          ctx.fillStyle = '#ffffff';
+          // Bottom heavy
+          const bottomBorder = h * 0.15;
+          const sideBorder = w * 0.05;
+          ctx.fillRect(0, 0, w, sideBorder); // Top
+          ctx.fillRect(0, 0, sideBorder, h); // Left
+          ctx.fillRect(w - sideBorder, 0, sideBorder, h); // Right
+          ctx.fillRect(0, h - bottomBorder, w, bottomBorder); // Bottom
+        } else if (activeFrame === 'film') {
+           ctx.fillStyle = '#111';
+           const sideH = h * 0.1;
+           ctx.fillRect(0, 0, w, sideH); // Top strip
+           ctx.fillRect(0, h - sideH, w, sideH); // Bottom strip
+           // Sprockets
+           ctx.fillStyle = '#fff';
+           const holeW = w * 0.03;
+           const holeH = sideH * 0.6;
+           const gap = w * 0.05;
+           for(let x = gap; x < w; x += gap + holeW) {
+             ctx.fillRect(x, sideH/2 - holeH/2, holeW, holeH);
+             ctx.fillRect(x, h - sideH/2 - holeH/2, holeW, holeH);
+           }
+        } else if (activeFrame === 'wood') {
+           ctx.strokeStyle = '#8B4513';
+           ctx.lineWidth = borderWidth;
+           ctx.strokeRect(borderWidth/2, borderWidth/2, w - borderWidth, h - borderWidth);
+           // Inner bevel
+           ctx.strokeStyle = '#A0522D';
+           ctx.lineWidth = borderWidth/4;
+           ctx.strokeRect(borderWidth, borderWidth, w - borderWidth*2, h - borderWidth*2);
+        }
+        ctx.restore();
+      }
+
+      // 8. Crop Overlay
       if (isCropping) {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate((filters.rotate * Math.PI) / 180);
-        if (filters.flipH) {
-           ctx.scale(-1, 1);
-        }
-        
-        const rect = getCropRect(originalWidth, originalHeight, cropParams.zoom, cropParams.aspect);
-        const drawX = rect.x - originalWidth / 2;
-        const drawY = rect.y - originalHeight / 2;
+        if (filters.flipH) ctx.scale(-1, 1);
+        const cropR = getCropRect(originalWidth, originalHeight, cropParams.zoom, cropParams.aspect);
+        const drawX = cropR.x - originalWidth / 2;
+        const drawY = cropR.y - originalHeight / 2;
         
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        const topH = rect.y;
-        const bottomH = originalHeight - (rect.y + rect.h);
-        const leftW = rect.x;
-        const rightW = originalWidth - (rect.x + rect.w);
+        const topH = cropR.y;
+        const bottomH = originalHeight - (cropR.y + cropR.h);
+        const leftW = cropR.x;
+        const rightW = originalWidth - (cropR.x + cropR.w);
         
         ctx.fillRect(-originalWidth/2, -originalHeight/2, originalWidth, topH);
-        ctx.fillRect(-originalWidth/2, (rect.y + rect.h) - originalHeight/2, originalWidth, bottomH);
-        ctx.fillRect(-originalWidth/2, drawY, leftW, rect.h);
-        ctx.fillRect((rect.x + rect.w) - originalWidth/2, drawY, rightW, rect.h);
-        
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(drawX, drawY, rect.w, rect.h);
-        
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(drawX + rect.w/3, drawY);
-        ctx.lineTo(drawX + rect.w/3, drawY + rect.h);
-        ctx.moveTo(drawX + 2*rect.w/3, drawY);
-        ctx.lineTo(drawX + 2*rect.w/3, drawY + rect.h);
-        ctx.moveTo(drawX, drawY + rect.h/3);
-        ctx.lineTo(drawX + rect.w, drawY + rect.h/3);
-        ctx.moveTo(drawX, drawY + 2*rect.h/3);
-        ctx.lineTo(drawX + rect.w, drawY + 2*rect.h/3);
-        ctx.stroke();
-
+        ctx.fillRect(-originalWidth/2, (cropR.y + cropR.h) - originalHeight/2, originalWidth, bottomH);
+        ctx.fillRect(-originalWidth/2, drawY, leftW, cropR.h);
+        ctx.fillRect((cropR.x + cropR.w) - originalWidth/2, drawY, rightW, cropR.h);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        ctx.strokeRect(drawX, drawY, cropR.w, cropR.h);
         ctx.restore();
       }
       
-      const dataUrl = canvas.toDataURL('image/png');
-      onImageProcessed(dataUrl, false);
+      onImageProcessed(canvas.toDataURL('image/png'), false);
     };
 
-  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed]);
+  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeFrame]);
+
+  const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const scaleX = (canvasRef.current.width / rect.width);
+    const scaleY = (canvasRef.current.height / rect.height);
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    const pos = getCanvasCoordinates(e);
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+
+    // Check Text Layers (Top priority)
+    if (onSelectText) {
+      for (let i = textLayers.length - 1; i >= 0; i--) {
+        const layer = textLayers[i];
+        ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}"`;
+        const metrics = ctx.measureText(layer.text);
+        const width = metrics.width;
+        const height = layer.fontSize * 1.2;
+        
+        if (pos.x >= layer.x && pos.x <= layer.x + width && pos.y >= layer.y && pos.y <= layer.y + height) {
+          onSelectText(layer.id);
+          setDragTarget({ type: 'text', id: layer.id });
+          setDragOffset({ x: pos.x - layer.x, y: pos.y - layer.y });
+          return;
+        }
+      }
+    }
+    
+    // Check Stickers
+    if (onUpdateStickerPosition) {
+      for (let i = stickers.length - 1; i >= 0; i--) {
+        const s = stickers[i];
+        // Sticker hit box roughly centered
+        const halfSize = s.size / 2;
+        if (pos.x >= s.x - halfSize && pos.x <= s.x + halfSize && pos.y >= s.y - halfSize && pos.y <= s.y + halfSize) {
+           setDragTarget({ type: 'sticker', id: s.id });
+           setDragOffset({ x: pos.x - s.x, y: pos.y - s.y });
+           if (onSelectText) onSelectText(null); // Deselect text
+           return;
+        }
+      }
+    }
+
+    if (onSelectText) onSelectText(null);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!dragTarget) return;
+    const pos = getCanvasCoordinates(e);
+    
+    if (dragTarget.type === 'text' && onUpdateTextPosition) {
+      onUpdateTextPosition(dragTarget.id, pos.x - dragOffset.x, pos.y - dragOffset.y);
+    } else if (dragTarget.type === 'sticker' && onUpdateStickerPosition) {
+      onUpdateStickerPosition(dragTarget.id, pos.x - dragOffset.x, pos.y - dragOffset.y);
+    }
+  };
+
+  const handleMouseUp = () => setDragTarget(null);
 
   if (!imageSrc) return null;
 
   return (
-    <div 
-      ref={containerRef} 
-      className="relative w-full h-full flex items-center justify-center overflow-hidden"
-    >
-      <div className="relative shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] dark:shadow-[0_0_40px_-5px_rgba(6,182,212,0.2)] transition-shadow duration-500">
-        <div className="absolute inset-0 z-0 rounded-sm bg-[url('https://media.istockphoto.com/id/1133426908/vector/checkered-transparent-background-pattern-vector-art.jpg?s=612x612&w=0&k=20&c=IqY_r5259-b4u876mF61K1fV6x3W6s_w1Tz2K4a6Q1I=')] bg-repeat bg-[length:20px_20px] opacity-50 dark:opacity-10"></div>
-        <canvas
-          ref={canvasRef}
-          className="relative z-10 max-w-[85vw] max-h-[70vh] object-contain rounded-sm dark:border dark:border-white/10"
-          style={{ maxWidth: '100%', maxHeight: '100%' }}
-        />
-      </div>
+    <div className="w-full h-full flex items-center justify-center p-4 overflow-hidden">
+      <canvas
+        ref={canvasRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleMouseDown}
+        onTouchMove={handleMouseMove}
+        onTouchEnd={handleMouseUp}
+        className="max-w-full max-h-full object-contain shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] dark:shadow-[0_0_30px_rgba(6,182,212,0.3)] rounded-sm dark:border dark:border-white/10 transition-transform duration-200 ease-out"
+        style={{ 
+          transform: `scale(${viewZoom})`,
+          cursor: dragTarget ? 'grabbing' : 'default' 
+        }}
+      />
     </div>
   );
 };

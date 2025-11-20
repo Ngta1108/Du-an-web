@@ -1,10 +1,9 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Upload, Download, Zap, Moon, Sun, Undo2, Redo2, RotateCcw } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { Upload, Download, Zap, Moon, Sun, ZoomIn, ZoomOut, Maximize, ImagePlus } from 'lucide-react';
 import { FilterControls } from './components/FilterControls';
 import { CanvasEditor } from './components/CanvasEditor';
-import { AIPanel } from './components/AIPanel';
-import { FilterState, DEFAULT_FILTERS, HistogramData } from './types';
+import { FilterState, DEFAULT_FILTERS, HistogramData, TextLayer, StickerLayer, FrameType } from './types';
 import { translations, Language } from './translations';
 
 const App: React.FC = () => {
@@ -14,6 +13,9 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
   const [histogramData, setHistogramData] = useState<HistogramData | null>(null);
+  const [viewZoom, setViewZoom] = useState(1);
+  const [activeTab, setActiveTab] = useState<'ai' | 'manual' | 'text' | 'creative'>('ai');
+  const [isDragging, setIsDragging] = useState(false);
   
   // History State
   const [history, setHistory] = useState<FilterState[]>([DEFAULT_FILTERS]);
@@ -24,21 +26,23 @@ const App: React.FC = () => {
   const [cropParams, setCropParams] = useState<{ zoom: number; aspect: number | null }>({ zoom: 1, aspect: null });
   const [cropTrigger, setCropTrigger] = useState(0);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Text Layers State
+  const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
+  const [activeTextId, setActiveTextId] = useState<string | null>(null);
 
+  // Creative State (New)
+  const [stickers, setStickers] = useState<StickerLayer[]>([]);
+  const [activeFrame, setActiveFrame] = useState<FrameType>('none');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const t = translations[language];
 
   // --- History Management ---
-  
   const handleAddToHistory = useCallback(() => {
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(filters);
-    
-    if (newHistory.length > 50) {
-      newHistory.shift();
-    } else {
-      setHistoryIndex(newHistory.length - 1);
-    }
+    if (newHistory.length > 50) newHistory.shift();
+    else setHistoryIndex(newHistory.length - 1);
     setHistory(newHistory);
   }, [filters, history, historyIndex]);
 
@@ -64,12 +68,37 @@ const App: React.FC = () => {
     newHistory.push(DEFAULT_FILTERS);
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
+    setStickers([]);
+    setActiveFrame('none');
   };
 
+  const handleRemoveImage = () => {
+    setImageSrc(null);
+    setFilters(DEFAULT_FILTERS);
+    setHistory([DEFAULT_FILTERS]);
+    setHistoryIndex(0);
+    setProcessedImage(null);
+    setIsCropping(false);
+    setCropParams({ zoom: 1, aspect: null });
+    setHistogramData(null);
+    setViewZoom(1);
+    setTextLayers([]);
+    setActiveTextId(null);
+    setStickers([]);
+    setActiveFrame('none');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const handleApplyPreset = (presetFilters: Partial<FilterState>) => {
+    setFilters(prev => {
+      const newState = { ...prev, ...presetFilters, rotate: prev.rotate, flipH: prev.flipH };
+      setTimeout(handleAddToHistory, 0);
+      return newState;
+    });
+  };
+
+  const processFile = (file: File) => {
+    if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
         if (typeof e.target?.result === 'string') {
@@ -81,15 +110,32 @@ const App: React.FC = () => {
           setIsCropping(false);
           setCropParams({ zoom: 1, aspect: null });
           setHistogramData(null);
+          setViewZoom(1);
+          setTextLayers([]);
+          setStickers([]);
+          setActiveFrame('none');
         }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const triggerUpload = () => {
-    fileInputRef.current?.click();
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) processFile(file);
   };
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const onDragLeave = (e: React.DragEvent) => { 
+    e.preventDefault(); 
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return; 
+    setIsDragging(false); 
+  };
+  const onDrop = (e: React.DragEvent) => { 
+    e.preventDefault(); setIsDragging(false); 
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); 
+  };
+  const triggerUpload = () => fileInputRef.current?.click();
 
   const handleDownload = () => {
     if (processedImage) {
@@ -107,253 +153,138 @@ const App: React.FC = () => {
       setCropParams({ zoom: 1, aspect: null });
       setHistory([filters]); 
       setHistoryIndex(0);
+      setTextLayers([]);
+      setStickers([]); // Stickers flatten on crop usually
     } else {
       setProcessedImage(base64);
     }
   }, [filters]);
 
-  const handleApplyCrop = () => {
-    setCropTrigger(prev => prev + 1);
+  const handleApplyCrop = () => setCropTrigger(prev => prev + 1);
+
+  // --- Text & Creative Handlers ---
+  const handleAddText = (type: 'heading' | 'body') => {
+    const newLayer: TextLayer = {
+      id: Date.now().toString(),
+      text: type === 'heading' ? (language === 'vi' ? 'Tiêu đề' : 'Heading') : (language === 'vi' ? 'Văn bản' : 'Body Text'),
+      x: 50 + textLayers.length * 10, y: 50 + textLayers.length * 10,
+      fontSize: type === 'heading' ? 60 : 30, color: '#ffffff',
+      fontFamily: 'Arial', fontWeight: type === 'heading' ? 'bold' : 'normal', fontStyle: 'normal'
+    };
+    setTextLayers([...textLayers, newLayer]);
+    setActiveTextId(newLayer.id);
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+  const handleUpdateTextLayer = (id: string, updates: Partial<TextLayer>) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+  const handleDeleteText = (id: string) => { setTextLayers(prev => prev.filter(l => l.id !== id)); if (activeTextId === id) setActiveTextId(null); };
+
+  const handleAddSticker = (emoji: string) => {
+     const newSticker: StickerLayer = {
+         id: Date.now().toString(),
+         content: emoji,
+         x: 100 + stickers.length * 10,
+         y: 100 + stickers.length * 10,
+         size: 80
+     };
+     setStickers([...stickers, newSticker]);
   };
 
-  const toggleLanguage = () => {
-    setLanguage(prev => prev === 'en' ? 'vi' : 'en');
+  const handleUpdateStickerPosition = (id: string, x: number, y: number) => {
+      setStickers(prev => prev.map(s => s.id === id ? { ...s, x, y } : s));
   };
+
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const toggleLanguage = () => setLanguage(prev => prev === 'en' ? 'vi' : 'en');
+  const handleZoomIn = () => setViewZoom(prev => Math.min(prev + 0.2, 5));
+  const handleZoomOut = () => setViewZoom(prev => Math.max(prev - 0.2, 0.2));
+  const handleFitScreen = () => setViewZoom(1);
 
   return (
-    <div className={`${isDarkMode ? 'dark' : ''} h-screen w-screen overflow-hidden`}>
+    <div className={`${isDarkMode ? 'dark' : ''} h-screen w-screen overflow-hidden relative`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {isDragging && (
+        <div className="absolute inset-0 z-[100] bg-white/80 dark:bg-black/80 backdrop-blur-md flex items-center justify-center animate-fade-in">
+          <div className="w-[90%] h-[90%] border-4 border-dashed border-pink-400 dark:border-cyan-400 rounded-3xl flex flex-col items-center justify-center gap-6 animate-pulse">
+            <div className="p-8 rounded-full bg-pink-100 dark:bg-cyan-900/50 text-pink-500 dark:text-cyan-400 shadow-xl"><ImagePlus size={80} /></div>
+            <h2 className="text-4xl font-bold text-gray-800 dark:text-white font-tech uppercase tracking-wider">{t.dropImageHere}</h2>
+            <p className="text-gray-500 dark:text-cyan-300 text-lg font-medium">{t.releaseToUpload}</p>
+          </div>
+        </div>
+      )}
+
       <div className="h-full w-full flex flex-col bg-rose-50 dark:bg-[#050505] text-gray-900 dark:text-gray-100 transition-colors duration-500 font-sans">
-        
-        {/* === NAVBAR === */}
-        <div className="pt-4 px-6 pb-2 dark:pt-0 dark:px-0 dark:pb-0 z-50">
-          <nav className={`
-            flex items-center justify-between 
-            transition-all duration-500
-            h-16 px-6
-            bg-white/80 dark:bg-[#0A0A0A]/80 
-            backdrop-blur-xl 
-            border border-white/50 dark:border-b dark:border-x-0 dark:border-t-0 dark:border-white/10
-            rounded-full dark:rounded-none
-            shadow-lg shadow-pink-500/5 dark:shadow-none
-          `}>
-            {/* Logo Area */}
+        <div className="pt-4 px-6 pb-2 dark:pt-0 dark:px-0 dark:pb-0 z-50 shrink-0">
+          <nav className={`flex items-center justify-between transition-all duration-500 h-16 px-6 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl border border-white/50 dark:border-b dark:border-x-0 dark:border-t-0 dark:border-white/10 rounded-full dark:rounded-none shadow-lg shadow-pink-500/5 dark:shadow-none`}>
             <div className="flex items-center gap-5">
               <div className="flex items-center gap-3 group cursor-pointer">
                 <div className="relative">
                   <div className="absolute inset-0 bg-pink-400 dark:bg-cyan-500 blur-lg opacity-0 group-hover:opacity-40 transition-opacity duration-500 rounded-full"></div>
-                  <div className={`
-                    relative w-9 h-9 flex items-center justify-center 
-                    transition-all duration-300
-                    ${isDarkMode 
-                      ? 'rounded-sm bg-cyan-950/30 border border-cyan-500/30 text-cyan-400' 
-                      : 'rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-white shadow-md'}
-                  `}>
+                  <div className={`relative w-9 h-9 flex items-center justify-center transition-all duration-300 ${isDarkMode ? 'rounded-sm bg-cyan-950/30 border border-cyan-500/30 text-cyan-400' : 'rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-white shadow-md'}`}>
                     <Zap size={isDarkMode ? 18 : 20} className={isDarkMode ? "drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]" : ""} fill="currentColor" />
                   </div>
                 </div>
-                <h1 className={`
-                  text-2xl tracking-tight font-bold
-                  bg-clip-text text-transparent 
-                  ${isDarkMode 
-                    ? 'font-tech bg-gradient-to-r from-white to-gray-400 tracking-widest uppercase' 
-                    : 'bg-gradient-to-r from-gray-800 to-gray-600'}
-                `}>
-                  SmartLens
-                </h1>
-              </div>
-              
-              <div className="hidden md:block h-5 w-px bg-gray-300 dark:bg-gray-800 mx-2"></div>
-              
-              <div className="hidden md:flex items-center gap-2">
-                  {['File', 'View', 'Export'].map((item) => (
-                    <button key={item} className={`
-                      px-3 py-1.5 text-sm font-medium transition-colors
-                      ${isDarkMode 
-                        ? 'font-tech uppercase text-gray-400 hover:text-cyan-400 hover:bg-cyan-950/30 rounded-sm' 
-                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full'}
-                    `}>
-                      {item}
-                    </button>
-                  ))}
+                <h1 className={`text-2xl tracking-tight font-bold bg-clip-text text-transparent ${isDarkMode ? 'font-tech bg-gradient-to-r from-white to-gray-400 tracking-widest uppercase' : 'bg-gradient-to-r from-gray-800 to-gray-600'}`}>SmartLens</h1>
               </div>
             </div>
-
-            {/* Right Actions */}
             <div className="flex items-center gap-3">
-              <div className={`
-                flex items-center p-1 gap-1
-                ${isDarkMode 
-                  ? 'bg-black border border-white/10 rounded-sm' 
-                  : 'bg-gray-100 rounded-full border border-gray-200'}
-              `}>
-                <button
-                  onClick={toggleLanguage}
-                  className={`
-                    w-9 h-9 flex items-center justify-center text-xs font-bold transition-all
-                    ${isDarkMode 
-                      ? 'rounded-sm text-gray-400 hover:text-white hover:bg-white/10 font-tech' 
-                      : 'rounded-full text-gray-500 hover:text-pink-600 hover:bg-white hover:shadow-sm'}
-                  `}
-                >
-                  {language === 'en' ? 'VI' : 'EN'}
-                </button>
-                <button
-                  onClick={toggleTheme}
-                  className={`
-                    w-9 h-9 flex items-center justify-center transition-all
-                    ${isDarkMode 
-                      ? 'rounded-sm text-cyan-400 hover:bg-cyan-950/50 hover:shadow-[0_0_10px_rgba(6,182,212,0.2)]' 
-                      : 'rounded-full text-amber-500 hover:bg-white hover:shadow-sm'}
-                  `}
-                >
-                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
+              <div className={`flex items-center p-1 gap-1 ${isDarkMode ? 'bg-black border border-white/10 rounded-sm' : 'bg-gray-100 rounded-full border border-gray-200'}`}>
+                <button onClick={toggleLanguage} className={`w-9 h-9 flex items-center justify-center text-xs font-bold transition-all ${isDarkMode ? 'rounded-sm text-gray-400 hover:text-white hover:bg-white/10 font-tech' : 'rounded-full text-gray-500 hover:text-pink-600 hover:bg-white hover:shadow-sm'}`}>{language === 'en' ? 'VI' : 'EN'}</button>
+                <button onClick={toggleTheme} className={`w-9 h-9 flex items-center justify-center transition-all ${isDarkMode ? 'rounded-sm text-cyan-400 hover:bg-cyan-950/50 hover:shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 'rounded-full text-amber-500 hover:bg-white hover:shadow-sm'}`}>{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
               </div>
-
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                accept="image/*" 
-                className="hidden" 
-              />
-              
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
               {!imageSrc && (
-                <button 
-                  onClick={triggerUpload}
-                  className={`
-                    flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all
-                    ${isDarkMode 
-                      ? 'font-tech uppercase tracking-wide rounded-sm border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:shadow-[0_0_10px_rgba(6,182,212,0.3)]' 
-                      : 'rounded-full bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:shadow-md'}
-                  `}
-                >
-                  <Upload size={18} />
-                  <span className="hidden sm:inline">{t.upload}</span>
-                </button>
+                <button onClick={triggerUpload} className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all ${isDarkMode ? 'font-tech uppercase tracking-wide rounded-sm border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'rounded-full bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:shadow-md'}`}><Upload size={18} /><span className="hidden sm:inline">{t.upload}</span></button>
               )}
-              
-              <button 
-                onClick={handleDownload}
-                disabled={!imageSrc}
-                className={`
-                  flex items-center gap-2 px-6 py-2.5 text-sm font-bold transition-all transform active:scale-95
-                  ${imageSrc 
-                    ? isDarkMode
-                      ? 'font-tech uppercase rounded-sm bg-cyan-600 hover:bg-cyan-500 text-black shadow-[0_0_15px_rgba(8,145,178,0.6)]'
-                      : 'rounded-full bg-gradient-to-r from-pink-500 to-violet-600 hover:from-pink-400 hover:to-violet-500 text-white shadow-lg shadow-pink-500/30' 
-                    : 'rounded-full dark:rounded-sm bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'}
-                `}
-              >
-                <span className="hidden sm:inline">{t.download}</span>
-                <Download size={18} />
-              </button>
+              <button onClick={handleDownload} disabled={!imageSrc} className={`flex items-center gap-2 px-6 py-2.5 text-sm font-bold transition-all transform active:scale-95 ${imageSrc ? isDarkMode ? 'font-tech uppercase rounded-sm bg-cyan-600 hover:bg-cyan-500 text-black shadow-[0_0_15px_rgba(8,145,178,0.6)]' : 'rounded-full bg-gradient-to-r from-pink-500 to-violet-600 hover:from-pink-400 hover:to-violet-500 text-white shadow-lg shadow-pink-500/30' : 'rounded-full dark:rounded-sm bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'}`}><span className="hidden sm:inline">{t.download}</span><Download size={18} /></button>
             </div>
           </nav>
         </div>
 
-        {/* === MAIN WORKSPACE === */}
-        <div className="flex-1 flex overflow-hidden relative mt-2 md:mt-4 mx-0 md:mx-4 mb-0 md:mb-4 rounded-t-3xl dark:rounded-none border-t border-x border-white/50 dark:border-white/5 shadow-2xl shadow-gray-200/50 dark:shadow-none bg-white/50 dark:bg-[#0A0A0A]">
-          
-          {/* Background Patterns */}
-          <div className="absolute inset-0 pointer-events-none z-0">
-             {isDarkMode ? (
-               <>
-                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-                 <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_50%_50%,rgba(6,182,212,0.05),transparent)]"></div>
-               </>
-             ) : (
-               <>
-                 <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-70"></div>
-                 <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-pink-50/50 to-transparent"></div>
-               </>
-             )}
+        <div className="flex-1 flex overflow-hidden relative mt-2 md:mt-4 mx-0 md:mx-4 mb-4 gap-4">
+          <div className={`w-80 flex-shrink-0 flex flex-col z-40 transition-all duration-500 ${isDarkMode ? 'bg-[#0A0A0A]/90 border-r border-white/10' : 'bg-white/80 border border-white/60 shadow-xl rounded-3xl mb-2 ml-2'} backdrop-blur-xl`}>
+             <FilterControls 
+                filters={filters} setFilters={setFilters} onReset={handleResetAll} t={t} language={language}
+                isCropping={isCropping} setIsCropping={setIsCropping} cropParams={cropParams} setCropParams={setCropParams} onApplyCrop={handleApplyCrop}
+                onAddToHistory={handleAddToHistory} currentImageBase64={imageSrc}
+                onUndo={handleUndo} onRedo={handleRedo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1}
+                histogramData={histogramData} onRemoveImage={handleRemoveImage}
+                activeTab={activeTab} setActiveTab={setActiveTab}
+                onAddText={handleAddText} activeTextId={activeTextId} textLayers={textLayers} onUpdateTextLayer={handleUpdateTextLayer} onDeleteText={handleDeleteText}
+                onApplyPreset={handleApplyPreset} onAddSticker={handleAddSticker} activeFrame={activeFrame} onSetFrame={setActiveFrame}
+             />
           </div>
 
-          {/* Left Sidebar - Tools & AI */}
-          <aside className={`
-             w-80 z-20 transition-transform duration-300 backdrop-blur-md
-             border-r border-white/60 dark:border-white/5
-             bg-white/60 dark:bg-[#0A0A0A]/90
-             ${isDarkMode ? '' : 'rounded-tl-3xl'}
-          `}>
-            <FilterControls 
-              filters={filters} 
-              setFilters={setFilters} 
-              onReset={handleResetAll}
-              t={t}
-              language={language}
-              isCropping={isCropping}
-              setIsCropping={setIsCropping}
-              cropParams={cropParams}
-              setCropParams={setCropParams}
-              onApplyCrop={handleApplyCrop}
-              onAddToHistory={handleAddToHistory}
-              currentImageBase64={processedImage}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              canUndo={historyIndex > 0}
-              canRedo={historyIndex < history.length - 1}
-              histogramData={histogramData}
-            />
-          </aside>
+          <div className="flex-1 relative flex flex-col min-w-0 bg-transparent overflow-hidden mr-2 mb-2 gap-2">
+             {/* Zoom Controls (Top Right now, simpler) */}
+             {imageSrc && (
+               <div className={`absolute top-4 right-4 z-30 flex flex-col gap-2`}>
+                  <div className={`flex flex-col gap-1 p-1 ${isDarkMode ? 'bg-black/80 border border-white/10 rounded-sm' : 'bg-white/80 rounded-xl shadow-lg border border-white/50 backdrop-blur-md'}`}>
+                    <button onClick={handleZoomIn} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg dark:rounded-sm text-gray-600 dark:text-gray-300 transition-colors" title={t.zoomIn}><ZoomIn size={18} /></button>
+                    <button onClick={handleFitScreen} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg dark:rounded-sm text-gray-600 dark:text-gray-300 transition-colors" title={t.fitScreen}><Maximize size={18} /></button>
+                    <button onClick={handleZoomOut} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg dark:rounded-sm text-gray-600 dark:text-gray-300 transition-colors" title={t.zoomOut}><ZoomOut size={18} /></button>
+                  </div>
+               </div>
+             )}
 
-          {/* Center - Canvas */}
-          <main className="flex-1 relative overflow-hidden flex flex-col z-10">
-            <div className="relative w-full h-full p-6 md:p-10 flex items-center justify-center">
-                 {imageSrc ? (
+             <div className={`flex-1 relative rounded-3xl overflow-hidden ${!imageSrc ? 'bg-transparent' : (isDarkMode ? '' : 'bg-white/40')}`}>
+                {imageSrc ? (
                   <CanvasEditor 
-                    imageSrc={imageSrc} 
-                    filters={filters} 
-                    onImageProcessed={handleImageProcessed}
-                    t={t}
-                    isCropping={isCropping}
-                    cropParams={cropParams}
-                    cropTrigger={cropTrigger}
-                    onHistogramData={setHistogramData}
+                    imageSrc={imageSrc} filters={filters} onImageProcessed={handleImageProcessed} t={t}
+                    isCropping={isCropping} cropParams={cropParams} cropTrigger={cropTrigger}
+                    onHistogramData={setHistogramData} viewZoom={viewZoom}
+                    textLayers={textLayers} activeTextId={activeTextId} onSelectText={setActiveTextId} onUpdateTextPosition={(id, x, y) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, x, y } : l))}
+                    stickers={stickers} activeFrame={activeFrame} onUpdateStickerPosition={handleUpdateStickerPosition}
                   />
                 ) : (
-                  /* Empty State */
-                  <div className="text-center animate-fade-in">
-                     <div 
-                       onClick={triggerUpload}
-                       className={`
-                         group cursor-pointer relative overflow-hidden p-1 transition-all duration-500
-                         ${isDarkMode 
-                            ? 'rounded-sm bg-gradient-to-br from-gray-800 to-gray-900 hover:from-cyan-900/40 hover:to-blue-900/40 border border-white/5 hover:border-cyan-500/50' 
-                            : 'rounded-[2.5rem] bg-gradient-to-br from-white to-gray-50 hover:from-pink-50 hover:to-violet-50 shadow-xl shadow-gray-200/50 hover:shadow-2xl hover:shadow-pink-100 hover:-translate-y-1'}
-                       `}
-                     >
-                        <div className={`
-                          px-20 py-24 flex flex-col items-center transition-colors
-                          ${isDarkMode ? 'bg-[#0F0F0F] rounded-sm' : 'bg-white/50 rounded-[2.2rem]'}
-                        `}>
-                            <div className={`
-                              w-28 h-28 mb-8 flex items-center justify-center transition-all duration-300
-                              ${isDarkMode 
-                                ? 'rounded-sm bg-gray-900 border border-white/10 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]' 
-                                : 'rounded-3xl bg-pink-50 text-pink-400 group-hover:scale-110 group-hover:rotate-3'}
-                            `}>
-                              <Upload size={48} className={`transition-colors ${isDarkMode ? 'text-gray-600 group-hover:text-cyan-400' : ''}`} />
-                            </div>
-                            <h2 className={`text-2xl md:text-3xl font-bold mb-3 ${isDarkMode ? 'font-tech text-white tracking-wide uppercase' : 'text-gray-800'}`}>
-                              {t.selectFromComputer}
-                            </h2>
-                            <p className={`max-w-xs leading-relaxed ${isDarkMode ? 'text-gray-500 font-tech text-sm' : 'text-gray-500 text-base'}`}>
-                              {t.noImageDesc}
-                            </p>
-                        </div>
-                     </div>
+                  <div className="absolute inset-0 flex items-center justify-center p-8">
+                    <div onClick={triggerUpload} className={`w-full max-w-2xl h-full max-h-[500px] flex flex-col items-center justify-center gap-6 border-2 border-dashed rounded-3xl dark:rounded-sm cursor-pointer transition-all group ${isDarkMode ? 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'border-gray-300 bg-white/50 hover:bg-white/80 hover:border-pink-400 hover:shadow-xl'}`}>
+                      <div className={`p-8 rounded-full dark:rounded-sm transition-transform duration-500 group-hover:scale-110 ${isDarkMode ? 'bg-cyan-950/30 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.2)]' : 'bg-gradient-to-br from-pink-100 to-violet-100 text-pink-500 shadow-inner'}`}><Upload size={64} className={isDarkMode ? "drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" : ""} /></div>
+                      <div className="text-center space-y-2"><h3 className={`text-2xl font-bold ${isDarkMode ? 'text-white font-tech uppercase tracking-widest' : 'text-gray-700'}`}>{t.noImageTitle}</h3><p className={`max-w-md ${isDarkMode ? 'text-gray-400 font-tech' : 'text-gray-500'}`}>{t.noImageDesc}</p></div>
+                      <button className={`px-8 py-3 rounded-full dark:rounded-sm font-bold transition-all ${isDarkMode ? 'bg-cyan-600 hover:bg-cyan-500 text-black font-tech uppercase tracking-wide' : 'bg-gray-900 hover:bg-gray-800 text-white shadow-lg'}`}>{t.selectFromComputer}</button>
+                    </div>
                   </div>
                 )}
-            </div>
-          </main>
-
-          {/* Right Sidebar Removed */}
+             </div>
+          </div>
         </div>
       </div>
     </div>

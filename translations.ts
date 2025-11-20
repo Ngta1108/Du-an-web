@@ -11,12 +11,26 @@ export const translations = {
     // Categories
     aiMagic: "AI Magic",
     manualTools: "Manual Tools",
+    textTool: "Text",
+    creative: "Creative", // New
     adjustments: "Light & Color",
     effects: "Effects",
     transform: "Transform",
-    proTools: "Pro Tools", // New
+    proTools: "Pro Tools", 
     tools: "Tools",
     reset: "Reset",
+    filters: "Filters",
+    removeImage: "Remove Image",
+    
+    // Creative Tools
+    stickers: "Stickers",
+    frames: "Frames",
+    frameNone: "None",
+    frameWhite: "Classic White",
+    frameFilm: "Film Strip",
+    frameNeon: "Neon Glow",
+    framePolaroid: "Polaroid",
+    frameWood: "Wooden",
     
     // Tools
     brightness: "Brightness",
@@ -47,6 +61,22 @@ export const translations = {
     square: "Square",
     landscape: "16:9",
     portrait: "4:3",
+    
+    // Text Tools
+    addHeading: "Add a Heading",
+    addBody: "Add Body Text",
+    textContent: "Content",
+    fontFamily: "Font",
+    fontSize: "Size",
+    textColor: "Color",
+    textStyle: "Style",
+    deleteText: "Delete Text",
+    noTextSelected: "Select text on canvas to edit",
+    
+    // Zoom Controls
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    fitScreen: "Fit to Screen",
     
     aiAssistant: "AI Assistant",
     poweredBy: "Powered by Gemini 2.5",
@@ -88,7 +118,22 @@ export const translations = {
     promptResult: "Generated Prompt",
     promptDesc: "AI will analyze this image and write a detailed text prompt compatible with Midjourney or Stable Diffusion.",
     copyToClipboard: "Copy to Clipboard",
-    copied: "Copied!"
+    copied: "Copied!",
+
+    // Presets
+    presetNormal: "Normal",
+    presetVivid: "Vivid",
+    presetWarm: "Warm",
+    presetCool: "Cool",
+    presetVintage: "Vintage",
+    presetBW: "B&W",
+    presetCyber: "Cyber",
+    presetSoft: "Soft",
+    presetDrama: "Drama",
+
+    // Drag Drop
+    dropImageHere: "Drop image here",
+    releaseToUpload: "Release to upload"
   },
   vi: {
     appTitle: "SmartLens AI",
@@ -101,12 +146,26 @@ export const translations = {
     // Categories
     aiMagic: "AI Magic",
     manualTools: "Thủ công",
+    textTool: "Chèn chữ",
+    creative: "Sáng tạo", // New
     adjustments: "Ánh sáng & Màu",
     effects: "Hiệu ứng",
     transform: "Biến đổi",
-    proTools: "Chuyên nghiệp", // New
+    proTools: "Chuyên nghiệp", 
     tools: "Công cụ",
     reset: "Đặt lại",
+    filters: "Bộ lọc màu",
+    removeImage: "Xóa ảnh",
+    
+    // Creative Tools
+    stickers: "Nhãn dán (Sticker)",
+    frames: "Khung hình",
+    frameNone: "Không",
+    frameWhite: "Viền trắng",
+    frameFilm: "Phim ảnh",
+    frameNeon: "Neon",
+    framePolaroid: "Polaroid",
+    frameWood: "Gỗ",
     
     // Tools
     brightness: "Độ sáng",
@@ -137,6 +196,22 @@ export const translations = {
     square: "Vuông",
     landscape: "16:9",
     portrait: "4:3",
+    
+    // Text Tools
+    addHeading: "Thêm Tiêu đề",
+    addBody: "Thêm Nội dung",
+    textContent: "Nội dung",
+    fontFamily: "Phông chữ",
+    fontSize: "Kích thước",
+    textColor: "Màu sắc",
+    textStyle: "Kiểu chữ",
+    deleteText: "Xóa chữ",
+    noTextSelected: "Chọn chữ trên ảnh để sửa",
+    
+    // Zoom Controls
+    zoomIn: "Phóng to",
+    zoomOut: "Thu nhỏ",
+    fitScreen: "Vừa màn hình",
     
     aiAssistant: "Trợ lý AI",
     poweredBy: "Hỗ trợ bởi Gemini 2.5",
@@ -178,7 +253,22 @@ export const translations = {
     promptResult: "Prompt Gợi ý",
     promptDesc: "AI sẽ phân tích bức ảnh này và viết ra một đoạn mô tả chi tiết (prompt) dùng cho Midjourney hoặc Stable Diffusion.",
     copyToClipboard: "Sao chép",
-    copied: "Đã chép!"
+    copied: "Đã chép!",
+
+    // Presets
+    presetNormal: "Bình thường",
+    presetVivid: "Rực rỡ",
+    presetWarm: "Ấm áp",
+    presetCool: "Lạnh lùng",
+    presetVintage: "Cổ điển",
+    presetBW: "Đen trắng",
+    presetCyber: "Cyber",
+    presetSoft: "Nhẹ nhàng",
+    presetDrama: "Kịch tính",
+
+    // Drag Drop
+    dropImageHere: "Thả ảnh vào đây",
+    releaseToUpload: "Thả tay để tải lên"
   }
 };
 

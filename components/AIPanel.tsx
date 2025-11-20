@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Sparkles, Bot, Loader2, Wand2, RotateCcw, CheckCircle2, Sliders, FileText, Copy, Image as ImageIcon, ChevronLeft, BrainCircuit, MessageCircle, Plus } from 'lucide-react';
 import { analyzeImage, generateImagePrompt } from '../services/geminiService';
@@ -123,7 +122,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
                 group-hover:scale-110 group-hover:-translate-y-1 group-active:scale-95
                 border-[2px] border-white dark:border-white/5 dark:group-hover:border-cyan-400
               `}>
-                {React.cloneElement(agent.icon as React.ReactElement, { 
+                {React.cloneElement(agent.icon as React.ReactElement<any>, { 
                   className: "drop-shadow-sm transition-transform group-hover:rotate-12" 
                 })}
               </div>

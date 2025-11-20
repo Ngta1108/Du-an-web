@@ -38,6 +38,28 @@ export const DEFAULT_FILTERS: FilterState = {
   threshold: 0,
 };
 
+export interface TextLayer {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight: string | number; // 'bold', 'normal', 700, etc.
+  fontStyle: string; // 'italic', 'normal'
+}
+
+export interface StickerLayer {
+  id: string;
+  content: string; // Emoji character
+  x: number;
+  y: number;
+  size: number;
+}
+
+export type FrameType = 'none' | 'white' | 'film' | 'neon' | 'polaroid' | 'wood';
+
 export interface AnalysisResult {
   description: string;
   suggestions: string[];
