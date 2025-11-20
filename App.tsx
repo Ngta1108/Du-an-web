@@ -3,7 +3,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Upload, Download, Zap, Moon, Sun, ZoomIn, ZoomOut, Maximize, ImagePlus } from 'lucide-react';
 import { FilterControls } from './components/FilterControls';
 import { CanvasEditor } from './components/CanvasEditor';
-import { FilterState, DEFAULT_FILTERS, HistogramData, TextLayer, StickerLayer, FrameType } from './types';
+import { FilterState, DEFAULT_FILTERS, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings } from './types';
 import { translations, Language } from './translations';
 
 const App: React.FC = () => {
@@ -30,9 +30,19 @@ const App: React.FC = () => {
   const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
   const [activeTextId, setActiveTextId] = useState<string | null>(null);
 
-  // Creative State (New)
+  // Creative State
   const [stickers, setStickers] = useState<StickerLayer[]>([]);
+  const [activeStickerId, setActiveStickerId] = useState<string | null>(null);
   const [activeFrame, setActiveFrame] = useState<FrameType>('none');
+  
+  // Brush State (New)
+  const [drawingPaths, setDrawingPaths] = useState<DrawingPath[]>([]);
+  const [brushSettings, setBrushSettings] = useState<BrushSettings>({
+    color: '#ffffff',
+    size: 10,
+    opacity: 1,
+    isEnabled: false
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = translations[language];
@@ -70,6 +80,7 @@ const App: React.FC = () => {
     setHistoryIndex(newHistory.length - 1);
     setStickers([]);
     setActiveFrame('none');
+    setDrawingPaths([]);
   };
 
   const handleRemoveImage = () => {
@@ -85,7 +96,10 @@ const App: React.FC = () => {
     setTextLayers([]);
     setActiveTextId(null);
     setStickers([]);
+    setActiveStickerId(null);
     setActiveFrame('none');
+    setDrawingPaths([]);
+    setBrushSettings(prev => ({ ...prev, isEnabled: false }));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -114,6 +128,7 @@ const App: React.FC = () => {
           setTextLayers([]);
           setStickers([]);
           setActiveFrame('none');
+          setDrawingPaths([]);
         }
       };
       reader.readAsDataURL(file);
@@ -154,7 +169,8 @@ const App: React.FC = () => {
       setHistory([filters]); 
       setHistoryIndex(0);
       setTextLayers([]);
-      setStickers([]); // Stickers flatten on crop usually
+      setStickers([]); 
+      setDrawingPaths([]); // Drawings flatten on crop usually
     } else {
       setProcessedImage(base64);
     }
@@ -164,6 +180,8 @@ const App: React.FC = () => {
 
   // --- Text & Creative Handlers ---
   const handleAddText = (type: 'heading' | 'body') => {
+    // Turn off brush when adding text
+    setBrushSettings(prev => ({ ...prev, isEnabled: false }));
     const newLayer: TextLayer = {
       id: Date.now().toString(),
       text: type === 'heading' ? (language === 'vi' ? 'Tiêu đề' : 'Heading') : (language === 'vi' ? 'Văn bản' : 'Body Text'),
@@ -179,6 +197,8 @@ const App: React.FC = () => {
   const handleDeleteText = (id: string) => { setTextLayers(prev => prev.filter(l => l.id !== id)); if (activeTextId === id) setActiveTextId(null); };
 
   const handleAddSticker = (emoji: string) => {
+     // Turn off brush
+     setBrushSettings(prev => ({ ...prev, isEnabled: false }));
      const newSticker: StickerLayer = {
          id: Date.now().toString(),
          content: emoji,
@@ -187,10 +207,56 @@ const App: React.FC = () => {
          size: 80
      };
      setStickers([...stickers, newSticker]);
+     setActiveStickerId(newSticker.id);
   };
 
   const handleUpdateStickerPosition = (id: string, x: number, y: number) => {
       setStickers(prev => prev.map(s => s.id === id ? { ...s, x, y } : s));
+  };
+  
+  const handleDeleteSticker = (id: string) => {
+      setStickers(prev => prev.filter(s => s.id !== id));
+      if (activeStickerId === id) setActiveStickerId(null);
+  };
+
+  const handleMoveLayer = (id: string, type: 'text' | 'sticker', direction: 'up' | 'down') => {
+    if (type === 'text') {
+      const index = textLayers.findIndex(l => l.id === id);
+      if (index === -1) return;
+      
+      const newLayers = [...textLayers];
+      if (direction === 'up' && index < textLayers.length - 1) {
+        [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
+      } else if (direction === 'down' && index > 0) {
+        [newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]];
+      }
+      setTextLayers(newLayers);
+    } else {
+      const index = stickers.findIndex(s => s.id === id);
+      if (index === -1) return;
+      
+      const newStickers = [...stickers];
+      if (direction === 'up' && index < stickers.length - 1) {
+        [newStickers[index], newStickers[index + 1]] = [newStickers[index + 1], newStickers[index]];
+      } else if (direction === 'down' && index > 0) {
+        [newStickers[index], newStickers[index - 1]] = [newStickers[index - 1], newStickers[index]];
+      }
+      setStickers(newStickers);
+    }
+  };
+
+  // --- Brush Handlers ---
+  const handleAddDrawingPath = (path: DrawingPath) => {
+    setDrawingPaths(prev => [...prev, path]);
+  };
+  const handleClearDrawings = () => setDrawingPaths([]);
+  const handleToggleBrush = (enabled: boolean) => {
+    setBrushSettings(prev => ({ ...prev, isEnabled: enabled }));
+    // If enabling brush, deselect active items
+    if (enabled) {
+        setActiveTextId(null);
+        setActiveStickerId(null);
+    }
   };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
@@ -250,11 +316,14 @@ const App: React.FC = () => {
                 activeTab={activeTab} setActiveTab={setActiveTab}
                 onAddText={handleAddText} activeTextId={activeTextId} textLayers={textLayers} onUpdateTextLayer={handleUpdateTextLayer} onDeleteText={handleDeleteText}
                 onApplyPreset={handleApplyPreset} onAddSticker={handleAddSticker} activeFrame={activeFrame} onSetFrame={setActiveFrame}
+                brushSettings={brushSettings} setBrushSettings={setBrushSettings} onToggleBrush={handleToggleBrush} onClearDrawings={handleClearDrawings}
+                activeStickerId={activeStickerId} setActiveStickerId={setActiveStickerId} stickers={stickers}
+                onMoveLayer={handleMoveLayer} onDeleteSticker={handleDeleteSticker}
              />
           </div>
 
           <div className="flex-1 relative flex flex-col min-w-0 bg-transparent overflow-hidden mr-2 mb-2 gap-2">
-             {/* Zoom Controls (Top Right now, simpler) */}
+             {/* Zoom Controls */}
              {imageSrc && (
                <div className={`absolute top-4 right-4 z-30 flex flex-col gap-2`}>
                   <div className={`flex flex-col gap-1 p-1 ${isDarkMode ? 'bg-black/80 border border-white/10 rounded-sm' : 'bg-white/80 rounded-xl shadow-lg border border-white/50 backdrop-blur-md'}`}>
@@ -272,7 +341,8 @@ const App: React.FC = () => {
                     isCropping={isCropping} cropParams={cropParams} cropTrigger={cropTrigger}
                     onHistogramData={setHistogramData} viewZoom={viewZoom}
                     textLayers={textLayers} activeTextId={activeTextId} onSelectText={setActiveTextId} onUpdateTextPosition={(id, x, y) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, x, y } : l))}
-                    stickers={stickers} activeFrame={activeFrame} onUpdateStickerPosition={handleUpdateStickerPosition}
+                    stickers={stickers} activeStickerId={activeStickerId} onSelectSticker={setActiveStickerId} activeFrame={activeFrame} onUpdateStickerPosition={handleUpdateStickerPosition}
+                    drawingPaths={drawingPaths} brushSettings={brushSettings} onAddDrawingPath={handleAddDrawingPath}
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center p-8">

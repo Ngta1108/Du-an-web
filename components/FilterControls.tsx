@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType } from '../types';
+import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, BrushSettings } from '../types';
 import { Translation, Language } from '../translations';
-import { Sun, Contrast, EyeOff, RotateCw, FlipHorizontal, Droplets, Sliders, ChevronDown, Layers, Crop, Palette, Aperture, Wand2, Type, Sparkles, Undo2, Redo2, RotateCcw, Thermometer, Tv, BoxSelect, Activity, Trash2, Type as TypeIcon, Bold, Italic, Sticker, Image as ImageIcon, Frame } from 'lucide-react';
+import { Sun, Contrast, EyeOff, RotateCw, FlipHorizontal, Droplets, Sliders, ChevronDown, Layers, Crop, Palette, Aperture, Wand2, Type, Sparkles, Undo2, Redo2, RotateCcw, Thermometer, Tv, BoxSelect, Activity, Trash2, Type as TypeIcon, Bold, Italic, Sticker, Image as ImageIcon, Frame, PenTool, Eraser, LayoutTemplate, ArrowUp, ArrowDown, MousePointer2 } from 'lucide-react';
 import { AIPanel } from './AIPanel';
 import { Histogram } from './Histogram';
 import { PRESETS, getCssStringFromFilter } from '../presets';
@@ -34,16 +34,31 @@ interface FilterControlsProps {
   onUpdateTextLayer: (id: string, updates: Partial<TextLayer>) => void;
   onDeleteText: (id: string) => void;
   
-  // New Creative Props
+  // Creative Props
   onApplyPreset: (filters: Partial<FilterState>) => void;
   onAddSticker: (emoji: string) => void;
   activeFrame: FrameType;
   onSetFrame: (frame: FrameType) => void;
+  
+  // Brush Props
+  brushSettings: BrushSettings;
+  setBrushSettings: React.Dispatch<React.SetStateAction<BrushSettings>>;
+  onToggleBrush: (enabled: boolean) => void;
+  onClearDrawings: () => void;
+  
+  // Layer Props
+  activeStickerId: string | null;
+  setActiveStickerId: (id: string | null) => void;
+  stickers: StickerLayer[];
+  onMoveLayer: (id: string, type: 'text' | 'sticker', direction: 'up' | 'down') => void;
+  onDeleteSticker: (id: string) => void;
 }
 
 export const FilterControls: React.FC<FilterControlsProps> = ({ 
   filters, setFilters, onReset, t, language, isCropping, setIsCropping, cropParams, setCropParams, onApplyCrop, onAddToHistory, currentImageBase64, onUndo, onRedo, canUndo, canRedo, histogramData, onRemoveImage, activeTab, setActiveTab, onAddText, activeTextId, textLayers, onUpdateTextLayer, onDeleteText,
-  onApplyPreset, onAddSticker, activeFrame, onSetFrame
+  onApplyPreset, onAddSticker, activeFrame, onSetFrame,
+  brushSettings, setBrushSettings, onToggleBrush, onClearDrawings,
+  activeStickerId, setActiveStickerId, stickers, onMoveLayer, onDeleteSticker
 }) => {
   const [sections, setSections] = useState({
     adjustments: true,
@@ -253,6 +268,95 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 
     return (
       <div className="p-4 space-y-8 animate-fade-in pb-20">
+         {/* Smart Resize Shortcuts */}
+         <div className="space-y-3">
+            <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2">
+                <LayoutTemplate size={14} /> {t.smartCrop}
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+                {[
+                    { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={16}/> },
+                    { label: t.postIG, val: 1, icon: <ImageIcon size={16}/> },
+                    { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={16} className="rotate-90"/> },
+                    { label: t.thumbYT, val: 16/9, icon: <Tv size={16}/> },
+                    { label: t.portrait, val: 3/4, icon: <ImageIcon size={16}/> }
+                ].map((item, idx) => (
+                    <button 
+                        key={idx} 
+                        onClick={() => {
+                            setCropParams(prev => ({ ...prev, aspect: item.val }));
+                            setIsCropping(true);
+                        }} 
+                        className="py-3 px-1 flex flex-col items-center gap-2 text-[10px] bg-gray-50 dark:bg-white/5 hover:bg-pink-50 dark:hover:bg-cyan-900/20 hover:text-pink-500 dark:hover:text-cyan-400 transition-all rounded-xl dark:rounded-sm dark:font-tech uppercase border border-transparent hover:border-pink-200 dark:hover:border-cyan-500/30"
+                    >
+                        {item.icon}
+                        <span>{item.label}</span>
+                    </button>
+                ))}
+            </div>
+         </div>
+
+         {/* Brush Tool */}
+         <div className="space-y-3">
+             <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2">
+                <PenTool size={14} /> {t.brush}
+            </h3>
+            <div className="bg-white dark:bg-white/5 p-3 rounded-xl dark:rounded-sm border border-gray-100 dark:border-white/10 space-y-4">
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => onToggleBrush(!brushSettings.isEnabled)}
+                        className={`flex-1 py-2.5 rounded-lg dark:rounded-sm text-xs font-bold dark:font-tech uppercase flex items-center justify-center gap-2 transition-all ${brushSettings.isEnabled ? 'bg-pink-500 text-white dark:bg-cyan-600 dark:text-black' : 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400 hover:bg-gray-200'}`}
+                    >
+                        {brushSettings.isEnabled ? t.stopDrawing : t.startDrawing}
+                    </button>
+                    <button 
+                        onClick={onClearDrawings}
+                        className="px-3 rounded-lg dark:rounded-sm bg-red-50 text-red-500 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                        title={t.clearDrawing}
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+                
+                {brushSettings.isEnabled && (
+                    <div className="space-y-3 pt-1 animate-fade-in">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">{t.brushColor}</label>
+                            <div className="flex flex-wrap gap-2">
+                                {['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'].map(c => (
+                                    <button 
+                                        key={c}
+                                        onClick={() => setBrushSettings(prev => ({ ...prev, color: c }))}
+                                        className={`w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 ${brushSettings.color === c ? 'ring-2 ring-offset-1 ring-pink-400 dark:ring-cyan-400' : ''}`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                                <input 
+                                    type="color" 
+                                    value={brushSettings.color} 
+                                    onChange={(e) => setBrushSettings(prev => ({...prev, color: e.target.value}))}
+                                    className="w-6 h-6 p-0 border-0 rounded-full overflow-hidden cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
+                                <span>{t.brushSize}</span>
+                                <span>{brushSettings.size}px</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min={1} max={50} 
+                                value={brushSettings.size} 
+                                onChange={(e) => setBrushSettings(prev => ({...prev, size: Number(e.target.value)}))}
+                                className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+         </div>
+
          {/* Filters (Moved Here) */}
          <div className="space-y-3">
             <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2">
@@ -303,6 +407,47 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                 ))}
             </div>
          </div>
+
+         {/* Layer Manager */}
+         <div className="space-y-3 border-t border-gray-100 dark:border-white/5 pt-4">
+            <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2">
+                <Layers size={14} /> {t.layers}
+            </h3>
+            {stickers.length === 0 && textLayers.length === 0 ? (
+                <p className="text-xs text-gray-400 italic pl-2">{t.noLayers}</p>
+            ) : (
+                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    {/* Render Stickers First (Bottom) to Last (Top) reversed for display logic usually, but here list order */}
+                    {stickers.map(s => (
+                        <div key={s.id} className={`flex items-center justify-between p-2 rounded-lg dark:rounded-sm border ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5'}`}>
+                            <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-2 flex-1 text-left">
+                                <span className="text-lg">{s.content}</span>
+                                <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{t.stickerLayer}</span>
+                            </button>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => onMoveLayer(s.id, 'sticker', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded"><ArrowUp size={12}/></button>
+                                <button onClick={() => onMoveLayer(s.id, 'sticker', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded"><ArrowDown size={12}/></button>
+                                <button onClick={() => onDeleteSticker(s.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"><Trash2 size={12}/></button>
+                            </div>
+                        </div>
+                    ))}
+                    {textLayers.map(l => (
+                         <div key={l.id} className={`flex items-center justify-between p-2 rounded-lg dark:rounded-sm border ${activeTextId === l.id ? 'border-pink-400 bg-pink-50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5'}`}>
+                            <button onClick={() => onDeleteText(l.id)} className="hidden"></button> {/* Hack to satisfy linter unused */}
+                             <button onClick={() => {/* Select text logic needs to come from parent really but simple select here */}} className="flex items-center gap-2 flex-1 text-left overflow-hidden">
+                                 <Type size={14} className="text-gray-400"/>
+                                 <span className="text-xs font-bold text-gray-600 dark:text-gray-300 truncate">{l.text}</span>
+                             </button>
+                             <div className="flex items-center gap-1">
+                                 <button onClick={() => onMoveLayer(l.id, 'text', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded"><ArrowUp size={12}/></button>
+                                 <button onClick={() => onMoveLayer(l.id, 'text', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded"><ArrowDown size={12}/></button>
+                                 <button onClick={() => onDeleteText(l.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"><Trash2 size={12}/></button>
+                             </div>
+                         </div>
+                    ))}
+                </div>
+            )}
+         </div>
       </div>
     );
   };
@@ -318,15 +463,25 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         </div>
         <div className="flex-1 p-6 space-y-8 overflow-y-auto custom-scrollbar">
           <div className="space-y-4">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.ratio}</label>
-            <div className="grid grid-cols-2 gap-3">
-              {[{ label: t.original, val: null }, { label: t.square, val: 1 }, { label: t.landscape, val: 16/9 }, { label: t.portrait, val: 4/3 }].map((item) => (
-                <button key={item.label} onClick={() => setCropParams(prev => ({ ...prev, aspect: item.val }))} className={`py-3 px-3 text-sm transition-all duration-200 ${cropParams.aspect === item.val ? 'bg-gray-900 text-white dark:bg-cyan-600 dark:text-black shadow-md' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'} rounded-xl dark:rounded-sm dark:font-tech dark:uppercase`}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
+             <label className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.smartCrop}</label>
+             <div className="grid grid-cols-3 gap-2">
+                {[
+                    { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={16}/> },
+                    { label: t.postIG, val: 1, icon: <ImageIcon size={16}/> },
+                    { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={16} className="rotate-90"/> },
+                    { label: t.thumbYT, val: 16/9, icon: <Tv size={16}/> },
+                    { label: t.landscape, val: 16/9, icon: <ImageIcon size={16}/> },
+                    { label: t.portrait, val: 4/3, icon: <ImageIcon size={16}/> }
+                ].map((item, idx) => (
+                    <button key={idx} onClick={() => setCropParams(prev => ({ ...prev, aspect: item.val }))} className={`py-2 px-1 flex flex-col items-center gap-1 text-[10px] transition-all ${cropParams.aspect === item.val ? 'bg-pink-500 text-white dark:bg-cyan-600 dark:text-black shadow-md' : 'bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-100'} rounded-lg dark:rounded-sm dark:font-tech uppercase`}>
+                        {item.icon}
+                        <span>{item.label}</span>
+                    </button>
+                ))}
+                <button onClick={() => setCropParams(prev => ({ ...prev, aspect: null }))} className={`col-span-3 py-2 text-xs font-bold border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg dark:rounded-sm hover:bg-gray-50 dark:hover:bg-white/5`}>{t.original}</button>
+             </div>
           </div>
+
           <div className="space-y-4">
              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.zoom}</label>
              <div className="relative h-6 flex items-center">

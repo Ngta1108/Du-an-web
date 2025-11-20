@@ -31,6 +31,20 @@ export const translations = {
     frameNeon: "Neon Glow",
     framePolaroid: "Polaroid",
     frameWood: "Wooden",
+    brush: "Magic Brush",
+    brushSize: "Size",
+    brushColor: "Color",
+    startDrawing: "Start Drawing",
+    stopDrawing: "Stop Drawing",
+    clearDrawing: "Clear Drawings",
+
+    // Layer Manager
+    layers: "Layers",
+    noLayers: "No text or stickers added",
+    moveUp: "Move Up",
+    moveDown: "Move Down",
+    textLayer: "Text",
+    stickerLayer: "Sticker",
     
     // Tools
     brightness: "Brightness",
@@ -61,6 +75,13 @@ export const translations = {
     square: "Square",
     landscape: "16:9",
     portrait: "4:3",
+    
+    // Smart Crop
+    smartCrop: "Smart Presets",
+    coverFB: "FB Cover",
+    postIG: "IG Post",
+    storyIG: "IG Story",
+    thumbYT: "YouTube",
     
     // Text Tools
     addHeading: "Add a Heading",
@@ -166,6 +187,20 @@ export const translations = {
     frameNeon: "Neon",
     framePolaroid: "Polaroid",
     frameWood: "Gỗ",
+    brush: "Bút vẽ thần kỳ",
+    brushSize: "Kích thước",
+    brushColor: "Màu mực",
+    startDrawing: "Bắt đầu vẽ",
+    stopDrawing: "Dừng vẽ",
+    clearDrawing: "Xóa nét vẽ",
+
+    // Layer Manager
+    layers: "Quản lý Lớp",
+    noLayers: "Chưa có chữ hoặc nhãn dán",
+    moveUp: "Lên trên",
+    moveDown: "Xuống dưới",
+    textLayer: "Chữ",
+    stickerLayer: "Sticker",
     
     // Tools
     brightness: "Độ sáng",
@@ -196,6 +231,13 @@ export const translations = {
     square: "Vuông",
     landscape: "16:9",
     portrait: "4:3",
+    
+    // Smart Crop
+    smartCrop: "Cắt thông minh",
+    coverFB: "Ảnh bìa FB",
+    postIG: "Bài đăng IG",
+    storyIG: "Story IG",
+    thumbYT: "YouTube",
     
     // Text Tools
     addHeading: "Thêm Tiêu đề",

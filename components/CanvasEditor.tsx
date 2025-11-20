@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType } from '../types';
+import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings } from '../types';
 import { Translation } from '../translations';
 
 interface CanvasEditorProps {
@@ -22,8 +22,15 @@ interface CanvasEditorProps {
 
   // Creative Props
   stickers?: StickerLayer[];
+  activeStickerId?: string | null;
+  onSelectSticker?: (id: string | null) => void;
   activeFrame?: FrameType;
   onUpdateStickerPosition?: (id: string, x: number, y: number) => void;
+  
+  // Brush Props
+  drawingPaths?: DrawingPath[];
+  brushSettings?: BrushSettings;
+  onAddDrawingPath?: (path: DrawingPath) => void;
 }
 
 export const CanvasEditor: React.FC<CanvasEditorProps> = ({ 
@@ -41,8 +48,13 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   onSelectText,
   onUpdateTextPosition,
   stickers = [],
+  activeStickerId = null,
+  onSelectSticker,
   activeFrame = 'none',
-  onUpdateStickerPosition
+  onUpdateStickerPosition,
+  drawingPaths = [],
+  brushSettings,
+  onAddDrawingPath
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -50,6 +62,10 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   const [dragTarget, setDragTarget] = useState<{ type: 'text' | 'sticker', id: string } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0, scaleX: 1, scaleY: 1 });
+
+  // Drawing State
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
 
   // Track previous trigger to only run on change
   const prevTriggerRef = useRef(cropTrigger);
@@ -210,18 +226,58 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
       }
+      
+      // 5. DRAWINGS
+      drawingPaths.forEach(path => {
+          if (path.points.length < 2) return;
+          ctx.save();
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = path.color;
+          ctx.lineWidth = path.size;
+          ctx.beginPath();
+          ctx.moveTo(path.points[0].x, path.points[0].y);
+          for(let i=1; i<path.points.length; i++){
+              ctx.lineTo(path.points[i].x, path.points[i].y);
+          }
+          ctx.stroke();
+          ctx.restore();
+      });
+      
+      if (isDrawing && currentPath.length > 1 && brushSettings) {
+          ctx.save();
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = brushSettings.color;
+          ctx.lineWidth = brushSettings.size;
+          ctx.beginPath();
+          ctx.moveTo(currentPath[0].x, currentPath[0].y);
+          for(let i=1; i<currentPath.length; i++){
+              ctx.lineTo(currentPath[i].x, currentPath[i].y);
+          }
+          ctx.stroke();
+          ctx.restore();
+      }
 
-      // 5. STICKERS (Below Text, Above filters)
+      // 6. STICKERS
       stickers.forEach(sticker => {
         ctx.save();
         ctx.font = `${sticker.size}px serif`;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
         ctx.fillText(sticker.content, sticker.x, sticker.y);
+        
+        if (activeStickerId === sticker.id) {
+             ctx.strokeStyle = '#f472b6'; // Pink border for active sticker
+             ctx.lineWidth = 2; 
+             ctx.setLineDash([5, 5]);
+             const boxSize = sticker.size * 1.2;
+             ctx.strokeRect(sticker.x - boxSize/2, sticker.y - boxSize/2, boxSize, boxSize);
+        }
         ctx.restore();
       });
 
-      // 6. TEXT LAYERS
+      // 7. TEXT LAYERS
       textLayers.forEach(layer => {
         ctx.save();
         ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}"`;
@@ -239,7 +295,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.restore();
       });
 
-      // 7. FRAMES (On Top)
+      // 8. FRAMES (On Top)
       if (activeFrame && activeFrame !== 'none') {
         ctx.save();
         const w = canvas.width;
@@ -291,7 +347,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         ctx.restore();
       }
 
-      // 8. Crop Overlay
+      // 9. Crop Overlay
       if (isCropping) {
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -319,7 +375,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       onImageProcessed(canvas.toDataURL('image/png'), false);
     };
 
-  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeFrame]);
+  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeStickerId, activeFrame, drawingPaths, isDrawing, currentPath]);
 
   const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
@@ -335,8 +391,15 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const pos = getCanvasCoordinates(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
+    
+    // BRUSH MODE
+    if (brushSettings && brushSettings.isEnabled) {
+        setIsDrawing(true);
+        setCurrentPath([pos]);
+        return;
+    }
 
-    // Check Text Layers (Top priority)
+    // Check Text Layers
     if (onSelectText) {
       for (let i = textLayers.length - 1; i >= 0; i--) {
         const layer = textLayers[i];
@@ -347,6 +410,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         
         if (pos.x >= layer.x && pos.x <= layer.x + width && pos.y >= layer.y && pos.y <= layer.y + height) {
           onSelectText(layer.id);
+          if (onSelectSticker) onSelectSticker(null);
           setDragTarget({ type: 'text', id: layer.id });
           setDragOffset({ x: pos.x - layer.x, y: pos.y - layer.y });
           return;
@@ -355,26 +419,33 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     }
     
     // Check Stickers
-    if (onUpdateStickerPosition) {
+    if (onUpdateStickerPosition && onSelectSticker) {
       for (let i = stickers.length - 1; i >= 0; i--) {
         const s = stickers[i];
-        // Sticker hit box roughly centered
         const halfSize = s.size / 2;
         if (pos.x >= s.x - halfSize && pos.x <= s.x + halfSize && pos.y >= s.y - halfSize && pos.y <= s.y + halfSize) {
+           onSelectSticker(s.id);
+           if (onSelectText) onSelectText(null); 
            setDragTarget({ type: 'sticker', id: s.id });
            setDragOffset({ x: pos.x - s.x, y: pos.y - s.y });
-           if (onSelectText) onSelectText(null); // Deselect text
            return;
         }
       }
     }
 
     if (onSelectText) onSelectText(null);
+    if (onSelectSticker) onSelectSticker(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!dragTarget) return;
     const pos = getCanvasCoordinates(e);
+    
+    if (isDrawing && brushSettings) {
+        setCurrentPath(prev => [...prev, pos]);
+        return;
+    }
+
+    if (!dragTarget) return;
     
     if (dragTarget.type === 'text' && onUpdateTextPosition) {
       onUpdateTextPosition(dragTarget.id, pos.x - dragOffset.x, pos.y - dragOffset.y);
@@ -383,7 +454,19 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     }
   };
 
-  const handleMouseUp = () => setDragTarget(null);
+  const handleMouseUp = () => {
+      if (isDrawing && brushSettings && currentPath.length > 1 && onAddDrawingPath) {
+          onAddDrawingPath({
+              points: currentPath,
+              color: brushSettings.color,
+              size: brushSettings.size,
+              opacity: brushSettings.opacity
+          });
+      }
+      setIsDrawing(false);
+      setCurrentPath([]);
+      setDragTarget(null);
+  };
 
   if (!imageSrc) return null;
 
@@ -401,7 +484,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
         className="max-w-full max-h-full object-contain shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] dark:shadow-[0_0_30px_rgba(6,182,212,0.3)] rounded-sm dark:border dark:border-white/10 transition-transform duration-200 ease-out"
         style={{ 
           transform: `scale(${viewZoom})`,
-          cursor: dragTarget ? 'grabbing' : 'default' 
+          cursor: brushSettings?.isEnabled ? 'crosshair' : (dragTarget ? 'grabbing' : 'default')
         }}
       />
     </div>

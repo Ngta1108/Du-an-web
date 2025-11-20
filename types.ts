@@ -58,6 +58,20 @@ export interface StickerLayer {
   size: number;
 }
 
+export interface DrawingPath {
+  points: { x: number; y: number }[];
+  color: string;
+  size: number;
+  opacity: number;
+}
+
+export interface BrushSettings {
+  color: string;
+  size: number;
+  opacity: number;
+  isEnabled: boolean;
+}
+
 export type FrameType = 'none' | 'white' | 'film' | 'neon' | 'polaroid' | 'wood';
 
 export interface AnalysisResult {
