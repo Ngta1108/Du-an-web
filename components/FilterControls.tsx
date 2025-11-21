@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, BrushSettings } from '../types';
 import { Translation, Language } from '../translations';
@@ -59,6 +60,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
   brushSettings, setBrushSettings, onToggleBrush, onClearDrawings,
   activeStickerId, setActiveStickerId, stickers, onMoveLayer, onDeleteSticker
 }) => {
+  // Manual Tools Sections
   const [sections, setSections] = useState({
     adjustments: true,
     effects: false,
@@ -66,8 +68,22 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     transform: false
   });
 
+  // Creative Tools Sections
+  const [creativeSections, setCreativeSections] = useState({
+    smartCrop: true,
+    brush: false,
+    filters: true,
+    stickers: false,
+    frames: false,
+    layers: true
+  });
+
   const toggleSection = (section: keyof typeof sections) => {
     setSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const toggleCreativeSection = (section: keyof typeof creativeSections) => {
+    setCreativeSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
   
   const updateFilter = (key: keyof FilterState, value: number | boolean) => {
@@ -270,200 +286,222 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     ];
 
     return (
-      <div className="p-2 space-y-8 animate-fade-in pb-20 pt-4">
+      <div className="p-2 space-y-2 animate-fade-in pb-20 pt-4">
          {/* Smart Resize Shortcuts */}
-         <div className="space-y-3">
-            <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <LayoutTemplate size={12} /> {t.smartCrop}
-            </h3>
-            <div className="grid grid-cols-3 gap-2">
-                {[
-                    { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={14}/>, color: 'hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50' },
-                    { label: t.postIG, val: 1, icon: <ImageIcon size={14}/>, color: 'hover:text-pink-500 hover:border-pink-200 hover:bg-pink-50' },
-                    { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={14} className="rotate-90"/>, color: 'hover:text-purple-500 hover:border-purple-200 hover:bg-purple-50' },
-                    { label: t.thumbYT, val: 16/9, icon: <Tv size={14}/>, color: 'hover:text-red-500 hover:border-red-200 hover:bg-red-50' },
-                    { label: t.portrait, val: 3/4, icon: <ImageIcon size={14}/>, color: 'hover:text-emerald-500 hover:border-emerald-200 hover:bg-emerald-50' }
-                ].map((item, idx) => (
-                    <button 
-                        key={idx} 
-                        onClick={() => {
-                            setCropParams(prev => ({ ...prev, aspect: item.val }));
-                            setIsCropping(true);
-                        }} 
-                        className={`
-                            py-2.5 px-1 flex flex-col items-center gap-1.5 text-[9px] 
-                            bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10
-                            transition-all duration-300 rounded-xl dark:rounded-md 
-                            hover:-translate-y-0.5 hover:shadow-sm
-                            dark:hover:bg-cyan-900/20 dark:hover:text-cyan-400 dark:hover:border-cyan-500/30
-                            ${item.color}
-                            dark:font-tech uppercase tracking-wide
-                        `}
-                    >
-                        {item.icon}
-                        <span className="font-bold">{item.label}</span>
-                    </button>
-                ))}
-            </div>
+         <div>
+            {renderSectionHeader(t.smartCrop, <LayoutTemplate size={14} />, creativeSections.smartCrop, () => toggleCreativeSection('smartCrop'))}
+            {creativeSections.smartCrop && (
+                <div className="pl-2 pr-1 animate-slide-down">
+                    <div className="grid grid-cols-3 gap-2 pt-2 pb-4">
+                        {[
+                            { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={14}/>, color: 'hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50' },
+                            { label: t.postIG, val: 1, icon: <ImageIcon size={14}/>, color: 'hover:text-pink-500 hover:border-pink-200 hover:bg-pink-50' },
+                            { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={14} className="rotate-90"/>, color: 'hover:text-purple-500 hover:border-purple-200 hover:bg-purple-50' },
+                            { label: t.thumbYT, val: 16/9, icon: <Tv size={14}/>, color: 'hover:text-red-500 hover:border-red-200 hover:bg-red-50' },
+                            { label: t.portrait, val: 3/4, icon: <ImageIcon size={14}/>, color: 'hover:text-emerald-500 hover:border-emerald-200 hover:bg-emerald-50' }
+                        ].map((item, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => {
+                                    setCropParams(prev => ({ ...prev, aspect: item.val }));
+                                    setIsCropping(true);
+                                }} 
+                                className={`
+                                    py-2.5 px-1 flex flex-col items-center gap-1.5 text-[9px] 
+                                    bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10
+                                    transition-all duration-300 rounded-xl dark:rounded-md 
+                                    hover:-translate-y-0.5 hover:shadow-sm
+                                    dark:hover:bg-cyan-900/20 dark:hover:text-cyan-400 dark:hover:border-cyan-500/30
+                                    ${item.color}
+                                    dark:font-tech uppercase tracking-wide
+                                `}
+                            >
+                                {item.icon}
+                                <span className="font-bold">{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
          </div>
 
+         <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
          {/* Brush Tool */}
-         <div className="space-y-3">
-             <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <PenTool size={12} /> {t.brush}
-            </h3>
-            <div className="bg-white/40 dark:bg-white/5 p-4 rounded-2xl dark:rounded-lg border border-white/50 dark:border-white/10 space-y-4 shadow-sm backdrop-blur-sm">
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => onToggleBrush(!brushSettings.isEnabled)}
-                        className={`flex-1 py-2.5 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase flex items-center justify-center gap-2 transition-all shadow-sm tracking-wide ${brushSettings.isEnabled ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white dark:bg-none dark:bg-cyan-600 dark:text-black shadow-pink-500/20' : 'bg-white text-gray-600 border border-gray-100 dark:bg-white/10 dark:text-gray-400 dark:border-transparent hover:bg-gray-50'}`}
-                    >
-                        {brushSettings.isEnabled ? t.stopDrawing : t.startDrawing}
-                    </button>
-                    <button 
-                        onClick={onClearDrawings}
-                        className="px-3 rounded-xl dark:rounded-md bg-white border border-red-100 text-red-500 dark:bg-red-900/20 dark:text-red-400 dark:border-transparent hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors"
-                        title={t.clearDrawing}
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                </div>
-                
-                {brushSettings.isEnabled && (
-                    <div className="space-y-4 pt-2 animate-fade-in">
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.brushColor}</label>
-                            <div className="flex flex-wrap gap-2">
-                                {['#ffffff', '#000000', '#ef4444', '#22c55e', '#3b82f6', '#eab308', '#d946ef', '#06b6d4'].map(c => (
-                                    <button 
-                                        key={c}
-                                        onClick={() => setBrushSettings(prev => ({ ...prev, color: c }))}
-                                        className={`w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 shadow-sm transition-transform hover:scale-110 ${brushSettings.color === c ? 'ring-2 ring-offset-2 ring-pink-400 dark:ring-cyan-400 scale-110' : ''}`}
-                                        style={{ backgroundColor: c }}
-                                    />
-                                ))}
-                                <div className="relative w-6 h-6 rounded-full overflow-hidden cursor-pointer hover:scale-110 transition-transform shadow-sm border border-gray-200">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-pink-400 to-cyan-400"></div>
+         <div>
+             {renderSectionHeader(t.brush, <PenTool size={14} />, creativeSections.brush, () => toggleCreativeSection('brush'))}
+             {creativeSections.brush && (
+                 <div className="pl-2 pr-1 animate-slide-down pb-4">
+                    <div className="bg-white/40 dark:bg-white/5 p-4 rounded-2xl dark:rounded-lg border border-white/50 dark:border-white/10 space-y-4 shadow-sm backdrop-blur-sm">
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => onToggleBrush(!brushSettings.isEnabled)}
+                                className={`flex-1 py-2.5 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase flex items-center justify-center gap-2 transition-all shadow-sm tracking-wide ${brushSettings.isEnabled ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white dark:bg-none dark:bg-cyan-600 dark:text-black shadow-pink-500/20' : 'bg-white text-gray-600 border border-gray-100 dark:bg-white/10 dark:text-gray-400 dark:border-transparent hover:bg-gray-50'}`}
+                            >
+                                {brushSettings.isEnabled ? t.stopDrawing : t.startDrawing}
+                            </button>
+                            <button 
+                                onClick={onClearDrawings}
+                                className="px-3 rounded-xl dark:rounded-md bg-white border border-red-100 text-red-500 dark:bg-red-900/20 dark:text-red-400 dark:border-transparent hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors"
+                                title={t.clearDrawing}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                        
+                        {brushSettings.isEnabled && (
+                            <div className="space-y-4 pt-2 animate-fade-in">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1">{t.brushColor}</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {['#ffffff', '#000000', '#ef4444', '#22c55e', '#3b82f6', '#eab308', '#d946ef', '#06b6d4'].map(c => (
+                                            <button 
+                                                key={c}
+                                                onClick={() => setBrushSettings(prev => ({ ...prev, color: c }))}
+                                                className={`w-6 h-6 rounded-full border border-gray-200 dark:border-gray-600 shadow-sm transition-transform hover:scale-110 ${brushSettings.color === c ? 'ring-2 ring-offset-2 ring-pink-400 dark:ring-cyan-400 scale-110' : ''}`}
+                                                style={{ backgroundColor: c }}
+                                            />
+                                        ))}
+                                        <div className="relative w-6 h-6 rounded-full overflow-hidden cursor-pointer hover:scale-110 transition-transform shadow-sm border border-gray-200">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-pink-400 to-cyan-400"></div>
+                                            <input 
+                                                type="color" 
+                                                value={brushSettings.color} 
+                                                onChange={(e) => setBrushSettings(prev => ({...prev, color: e.target.value}))}
+                                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-[9px] font-bold text-gray-400 uppercase px-1 tracking-widest">
+                                        <span>{t.brushSize}</span>
+                                        <span>{brushSettings.size}px</span>
+                                    </div>
                                     <input 
-                                        type="color" 
-                                        value={brushSettings.color} 
-                                        onChange={(e) => setBrushSettings(prev => ({...prev, color: e.target.value}))}
-                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                        type="range" 
+                                        min={1} max={50} 
+                                        value={brushSettings.size} 
+                                        onChange={(e) => setBrushSettings(prev => ({...prev, size: Number(e.target.value)}))}
+                                        className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3"
                                     />
                                 </div>
                             </div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-[9px] font-bold text-gray-400 uppercase px-1 tracking-widest">
-                                <span>{t.brushSize}</span>
-                                <span>{brushSettings.size}px</span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min={1} max={50} 
-                                value={brushSettings.size} 
-                                onChange={(e) => setBrushSettings(prev => ({...prev, size: Number(e.target.value)}))}
-                                className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3"
-                            />
-                        </div>
+                        )}
                     </div>
-                )}
-            </div>
+                 </div>
+             )}
          </div>
+
+         <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
 
          {/* Filters */}
-         <div className="space-y-3">
-            <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <Palette size={12} /> {t.filters}
-            </h3>
-            <div className="grid grid-cols-3 gap-3">
-                {PRESETS.map(preset => (
-                    <button key={preset.id} onClick={() => onApplyPreset(preset.filterValues)} className="flex flex-col items-center gap-2 group cursor-pointer">
-                         <div className="w-full aspect-square rounded-2xl dark:rounded-md bg-gray-100 dark:bg-white/5 overflow-hidden border-2 border-transparent group-hover:border-pink-400 dark:group-hover:border-cyan-400 relative shadow-sm transition-all group-hover:scale-105 group-active:scale-95">
-                             {currentImageBase64 && (
-                                 <img src={currentImageBase64} className="w-full h-full object-cover" style={{ filter: getCssStringFromFilter(preset.filterValues) }} />
-                             )}
-                         </div>
-                         <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 dark:font-tech uppercase tracking-wider group-hover:text-pink-500 dark:group-hover:text-cyan-400 transition-colors">
-                            {/* @ts-ignore */}
-                            {t[preset.nameKey]}
-                         </span>
-                    </button>
-                ))}
-            </div>
-         </div>
-
-         {/* Stickers */}
-         <div className="space-y-3">
-            <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <Sticker size={12} /> {t.stickers}
-            </h3>
-            <div className="grid grid-cols-5 gap-2 bg-white/40 dark:bg-white/5 p-3 rounded-2xl dark:rounded-lg border border-white/50 dark:border-white/10">
-                {emojis.map(emoji => (
-                    <button key={emoji} onClick={() => onAddSticker(emoji)} className="text-xl hover:scale-125 transition-transform p-1.5 rounded-xl hover:bg-white dark:hover:bg-white/20 hover:shadow-sm">
-                        {emoji}
-                    </button>
-                ))}
-            </div>
-         </div>
-
-         {/* Frames */}
-         <div className="space-y-3">
-            <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <Frame size={12} /> {t.frames}
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-                {frames.map(frame => (
-                    <button 
-                        key={frame.id} 
-                        onClick={() => onSetFrame(frame.id)}
-                        className={`py-3 px-2 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase border transition-all tracking-wide ${activeFrame === frame.id ? 'bg-gray-900 text-white dark:bg-cyan-600 dark:text-black border-transparent shadow-md' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-200'}`}
-                    >
-                        {frame.label}
-                    </button>
-                ))}
-            </div>
-         </div>
-
-         {/* Layer Manager */}
-         <div className="space-y-3 border-t border-gray-200/60 dark:border-white/5 pt-6">
-            <h3 className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase flex items-center gap-2 px-1 tracking-widest">
-                <Layers size={12} /> {t.layers}
-            </h3>
-            {stickers.length === 0 && textLayers.length === 0 ? (
-                <p className="text-[10px] text-gray-400 italic pl-4 py-2">{t.noLayers}</p>
-            ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                    {/* Render Stickers */}
-                    {stickers.map(s => (
-                        <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
-                            <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-3 flex-1 text-left">
-                                <span className="text-lg leading-none ml-1">{s.content}</span>
-                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t.stickerLayer}</span>
+         <div>
+            {renderSectionHeader(t.filters, <Palette size={14} />, creativeSections.filters, () => toggleCreativeSection('filters'))}
+            {creativeSections.filters && (
+                <div className="pl-2 pr-1 animate-slide-down pb-4">
+                    <div className="grid grid-cols-3 gap-3">
+                        {PRESETS.map(preset => (
+                            <button key={preset.id} onClick={() => onApplyPreset(preset.filterValues)} className="flex flex-col items-center gap-2 group cursor-pointer">
+                                <div className="w-full aspect-square rounded-2xl dark:rounded-md bg-gray-100 dark:bg-white/5 overflow-hidden border-2 border-transparent group-hover:border-pink-400 dark:group-hover:border-cyan-400 relative shadow-sm transition-all group-hover:scale-105 group-active:scale-95">
+                                    {currentImageBase64 && (
+                                        <img src={currentImageBase64} className="w-full h-full object-cover" style={{ filter: getCssStringFromFilter(preset.filterValues) }} />
+                                    )}
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 dark:font-tech uppercase tracking-wider group-hover:text-pink-500 dark:group-hover:text-cyan-400 transition-colors">
+                                    {/* @ts-ignore */}
+                                    {t[preset.nameKey]}
+                                </span>
                             </button>
-                            <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
-                                <button onClick={() => onMoveLayer(s.id, 'sticker', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
-                                <button onClick={() => onMoveLayer(s.id, 'sticker', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
-                                <button onClick={() => onDeleteSticker(s.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
-                            </div>
-                        </div>
-                    ))}
-                    {/* Render Text */}
-                    {textLayers.map(l => (
-                         <div key={l.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeTextId === l.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
-                             <button onClick={() => {}} className="flex items-center gap-3 flex-1 text-left overflow-hidden">
-                                 <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500"><Type size={12} /></div>
-                                 <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate">{l.text}</span>
-                             </button>
-                             <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
-                                 <button onClick={() => onMoveLayer(l.id, 'text', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
-                                 <button onClick={() => onMoveLayer(l.id, 'text', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
-                                 <button onClick={() => onDeleteText(l.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
-                             </div>
-                         </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
+         </div>
+
+         <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
+         {/* Stickers */}
+         <div>
+            {renderSectionHeader(t.stickers, <Sticker size={14} />, creativeSections.stickers, () => toggleCreativeSection('stickers'))}
+            {creativeSections.stickers && (
+                <div className="pl-2 pr-1 animate-slide-down pb-4">
+                    <div className="grid grid-cols-5 gap-2 bg-white/40 dark:bg-white/5 p-3 rounded-2xl dark:rounded-lg border border-white/50 dark:border-white/10">
+                        {emojis.map(emoji => (
+                            <button key={emoji} onClick={() => onAddSticker(emoji)} className="text-xl hover:scale-125 transition-transform p-1.5 rounded-xl hover:bg-white dark:hover:bg-white/20 hover:shadow-sm">
+                                {emoji}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+         </div>
+
+         <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
+         {/* Frames */}
+         <div>
+            {renderSectionHeader(t.frames, <Frame size={14} />, creativeSections.frames, () => toggleCreativeSection('frames'))}
+            {creativeSections.frames && (
+                <div className="pl-2 pr-1 animate-slide-down pb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        {frames.map(frame => (
+                            <button 
+                                key={frame.id} 
+                                onClick={() => onSetFrame(frame.id)}
+                                className={`py-3 px-2 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase border transition-all tracking-wide ${activeFrame === frame.id ? 'bg-gray-900 text-white dark:bg-cyan-600 dark:text-black border-transparent shadow-md' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-200'}`}
+                            >
+                                {frame.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+         </div>
+
+         <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
+         {/* Layer Manager */}
+         <div>
+             {renderSectionHeader(t.layers, <Layers size={14} />, creativeSections.layers, () => toggleCreativeSection('layers'))}
+             {creativeSections.layers && (
+                <div className="pl-2 pr-1 animate-slide-down">
+                    {stickers.length === 0 && textLayers.length === 0 ? (
+                        <p className="text-[10px] text-gray-400 italic pl-2 py-2">{t.noLayers}</p>
+                    ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                            {/* Render Stickers */}
+                            {stickers.map(s => (
+                                <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
+                                    <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-3 flex-1 text-left">
+                                        <span className="text-lg leading-none ml-1">{s.content}</span>
+                                        <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t.stickerLayer}</span>
+                                    </button>
+                                    <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
+                                        <button onClick={() => onMoveLayer(s.id, 'sticker', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
+                                        <button onClick={() => onMoveLayer(s.id, 'sticker', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
+                                        <button onClick={() => onDeleteSticker(s.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                            {/* Render Text */}
+                            {textLayers.map(l => (
+                                <div key={l.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeTextId === l.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
+                                    <button onClick={() => {}} className="flex items-center gap-3 flex-1 text-left overflow-hidden">
+                                        <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500"><Type size={12} /></div>
+                                        <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate">{l.text}</span>
+                                    </button>
+                                    <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
+                                        <button onClick={() => onMoveLayer(l.id, 'text', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
+                                        <button onClick={() => onMoveLayer(l.id, 'text', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
+                                        <button onClick={() => onDeleteText(l.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                 </div>
+             )}
          </div>
       </div>
     );
