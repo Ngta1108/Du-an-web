@@ -22,6 +22,7 @@ export const translations = {
     reset: "Reset",
     filters: "Filters",
     removeImage: "Remove Image",
+    restoreOriginal: "Restore Original",
     
     // Creative Tools
     stickers: "Stickers",
@@ -155,6 +156,10 @@ export const translations = {
     agentPaletteDesc: "Extract colors",
     agentSticker: "Sticker",
     agentStickerDesc: "Create sticker from photo",
+    agentUpscaler: "Upscaler",
+    agentUpscalerDesc: "AI Super Resolution",
+    agentAnime: "Anime",
+    agentAnimeDesc: "Anime Style Filter",
     backToTools: "Back to Tools",
     
     // Prompt Gen
@@ -193,6 +198,34 @@ export const translations = {
     stickerResult: "Your Sticker",
     addToCanvas: "Add to Photo",
 
+    // Upscaler
+    upscaleBtn: "Upscale Now",
+    upscaling: "AI Upscaling in progress...",
+    upscaleDesc: "Enhance image resolution using AI Super Resolution. Choose 2x, 3x, or 4x scale.",
+    upscaleResult: "Upscaled Successfully!",
+    chooseScale: "Choose Scale",
+    scale2x: "2x (Fast)",
+    scale3x: "3x (Balanced)",
+    scale4x: "4x (Best)",
+    estimatedTime: "Est. Time",
+    seconds: "sec",
+    originalSize: "Original",
+    newSize: "Upscaled",
+    applyUpscale: "Apply to Image",
+
+    // Anime Filter
+    animeBtn: "Transform to Anime",
+    animeProcessing: "Transforming to anime style...",
+    animeDesc: "Transform your photo into anime/cartoon style artwork. Works best with portraits and people photos. Try different styles and intensity!",
+    animeResult: "Anime Transformation Complete!",
+    chooseStyle: "Choose Style",
+    styleAnime: "Anime (Colorful)",
+    styleCartoon: "Cartoon (Soft)",
+    styleManga: "Manga (B&W)",
+    intensity: "Intensity",
+    applyAnime: "Apply to Image",
+    downloadAnime: "Download Anime Version",
+
     // Presets
     presetNormal: "Normal",
     presetVivid: "Vivid",
@@ -229,6 +262,7 @@ export const translations = {
     reset: "Đặt lại",
     filters: "Bộ lọc màu",
     removeImage: "Xóa ảnh",
+    restoreOriginal: "Khôi phục ảnh gốc",
     
     // Creative Tools
     stickers: "Nhãn dán (Sticker)",
@@ -362,6 +396,10 @@ export const translations = {
     agentPaletteDesc: "Trích xuất màu",
     agentSticker: "Tạo Sticker",
     agentStickerDesc: "Biến ảnh thành Sticker",
+    agentUpscaler: "Nâng cấp",
+    agentUpscalerDesc: "AI Super Resolution",
+    agentAnime: "Anime",
+    agentAnimeDesc: "Phong cách Anime",
     backToTools: "Quay lại",
     
     // Prompt Gen
@@ -399,6 +437,34 @@ export const translations = {
     stickerDesc: "AI sẽ nhận diện chủ thể trong ảnh và vẽ lại thành một Sticker cute phô mai que.",
     stickerResult: "Sticker của bạn",
     addToCanvas: "Dán vào ảnh",
+
+    // Upscaler
+    upscaleBtn: "Nâng cấp độ phân giải",
+    upscaling: "AI đang nâng cấp ảnh...",
+    upscaleDesc: "Tăng độ phân giải ảnh bằng AI Super Resolution. Chọn tăng 2x, 3x hoặc 4x.",
+    upscaleResult: "Nâng cấp thành công!",
+    chooseScale: "Chọn mức phóng đại",
+    scale2x: "2x (Nhanh)",
+    scale3x: "3x (Cân bằng)",
+    scale4x: "4x (Tốt nhất)",
+    estimatedTime: "Thời gian ước tính",
+    seconds: "giây",
+    originalSize: "Kích thước gốc",
+    newSize: "Kích thước mới",
+    applyUpscale: "Áp dụng vào ảnh",
+
+    // Anime Filter
+    animeBtn: "Biến thành Anime",
+    animeProcessing: "Đang biến đổi phong cách anime...",
+    animeDesc: "Biến ảnh thành phong cách anime/hoạt hình. Hoạt động tốt nhất với ảnh chân dung và người. Thử các phong cách khác nhau!",
+    animeResult: "Hoàn thành biến đổi Anime!",
+    chooseStyle: "Chọn phong cách",
+    styleAnime: "Anime (Màu sắc)",
+    styleCartoon: "Hoạt hình (Nhẹ nhàng)",
+    styleManga: "Manga (Đen trắng)",
+    intensity: "Cường độ",
+    applyAnime: "Áp dụng vào ảnh",
+    downloadAnime: "Tải xuống phiên bản Anime",
 
     // Presets
     presetNormal: "Bình thường",

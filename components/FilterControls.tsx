@@ -1,12 +1,13 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, BrushSettings } from '../types';
 import { Translation, Language } from '../translations';
 import { Sun, Contrast, EyeOff, RotateCw, FlipHorizontal, Droplets, Sliders, ChevronDown, Layers, Crop, Palette, Aperture, Wand2, Type, Sparkles, Undo2, Redo2, RotateCcw, Thermometer, Tv, BoxSelect, Activity, Trash2, Type as TypeIcon, Bold, Italic, Sticker, Image as ImageIcon, Frame, PenTool, LayoutTemplate, ArrowUp, ArrowDown, Settings, PaintBucket, Eraser, Smartphone, Monitor, Facebook, Instagram, Youtube, Linkedin } from 'lucide-react';
 import { AIPanel } from './AIPanel';
 import { Histogram } from './Histogram';
 import { PRESETS, getCssStringFromFilter } from '../presets';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface FilterControlsProps {
   filters: FilterState;
@@ -35,6 +36,9 @@ interface FilterControlsProps {
   textLayers: TextLayer[];
   onUpdateTextLayer: (id: string, updates: Partial<TextLayer>) => void;
   onDeleteText: (id: string) => void;
+  onReplaceImage?: (newImageBase64: string) => void;
+  originalImageBackup?: string | null;
+  onRestoreOriginal?: () => void;
   
   // Creative Props
   onApplyPreset: (filters: Partial<FilterState>) => void;
@@ -59,12 +63,13 @@ interface FilterControlsProps {
   layerOrder?: {id: string, type: 'text' | 'sticker'}[];
 }
 
-export const FilterControls: React.FC<FilterControlsProps> = ({ 
+const FilterControlsComponent: React.FC<FilterControlsProps> = ({ 
   filters, setFilters, onReset, t, language, isCropping, setIsCropping, cropParams, setCropParams, onApplyCrop, onAddToHistory, currentImageBase64, onUndo, onRedo, canUndo, canRedo, histogramData, onRemoveImage, activeTab, setActiveTab, onAddText, activeTextId, setActiveTextId, textLayers, onUpdateTextLayer, onDeleteText,
   onApplyPreset, onAddSticker, activeFrame, onSetFrame,
   brushSettings, setBrushSettings, onToggleBrush, onClearDrawings,
   activeStickerId, setActiveStickerId, stickers, onMoveLayer, onDeleteSticker,
-  layerOrder = []
+  layerOrder = [],
+  onReplaceImage, originalImageBackup, onRestoreOriginal
 }) => {
   // Manual Tools Sections
   const [sections, setSections] = useState({
@@ -153,7 +158,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
           
           <div className={`
              flex items-center justify-center min-w-[48px] px-2 py-1 gap-0.5
-             dark:font-tech dark:bg-black/40 dark:text-cyan-400 dark:border dark:border-white/10 dark:rounded-md
+             dark:font-tech dark:bg-black/40 dark:text-gray-300 dark:border dark:border-white/10 dark:rounded-md
              bg-white/80 text-gray-600 rounded-full border border-gray-200/60 shadow-sm backdrop-blur-sm transition-all
           `}>
             <input 
@@ -184,7 +189,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
           <div className="absolute w-full h-1 dark:h-[1px] bg-gray-200 dark:bg-white/10 rounded-full dark:rounded-none overflow-visible pointer-events-none transition-all">
             {/* Active Fill */}
             <div 
-              className="h-full bg-pink-500 dark:bg-cyan-500 transition-all duration-75 rounded-full dark:rounded-none shadow-[0_0_10px_rgba(236,72,153,0.5)] dark:shadow-[0_0_10px_rgba(6,182,212,0.6)]"
+              className="h-full bg-pink-500 dark:bg-gray-600 transition-all duration-75 rounded-full dark:rounded-none shadow-[0_0_10px_rgba(236,72,153,0.5)] dark:shadow-none"
               style={{ width: `${percentage}%` }}
             ></div>
           </div>
@@ -243,7 +248,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     return (
       <div className="h-full animate-fade-in space-y-2 p-2 pt-4 pb-20">
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <button onClick={() => onAddText('heading')} className="py-6 px-3 bg-gray-900 dark:bg-cyan-950/30 text-white dark:text-cyan-300 rounded-2xl dark:rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-black dark:hover:bg-cyan-900/50 hover:-translate-y-0.5 shadow-lg dark:shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all dark:font-tech uppercase dark:border dark:border-cyan-500/30 dark:tracking-widest">
+          <button onClick={() => onAddText('heading')} className="py-6 px-3 bg-gray-900 dark:bg-gray-800/50 text-white dark:text-gray-200 rounded-2xl dark:rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-black dark:hover:bg-gray-700/50 hover:-translate-y-0.5 shadow-lg dark:shadow-none transition-all dark:font-tech uppercase dark:border dark:border-gray-700 dark:tracking-widest">
             <TypeIcon size={24} strokeWidth={2.5} />
             <span className="text-[10px] font-bold">{t.addHeading}</span>
           </button>
@@ -278,7 +283,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                                      <button 
                                         key={f.val}
                                         onClick={() => onUpdateTextLayer(activeText.id, { fontFamily: f.val })}
-                                        className={`p-2 text-xs rounded-lg dark:rounded-sm border transition-all ${activeText.fontFamily === f.val ? 'bg-pink-50 border-pink-200 text-pink-600 dark:bg-cyan-900/30 dark:border-cyan-500/30 dark:text-cyan-400' : 'bg-white dark:bg-white/5 border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10'}`}
+                                        className={`p-2 text-xs rounded-lg dark:rounded-sm border transition-all ${activeText.fontFamily === f.val ? 'bg-pink-50 border-pink-200 text-pink-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200' : 'bg-white dark:bg-white/5 border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10'}`}
                                         style={{ fontFamily: f.val }}
                                      >
                                          {f.name}
@@ -312,10 +317,10 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 
                          {/* Style Toggles */}
                          <div className="flex bg-gray-100/80 dark:bg-white/5 rounded-xl dark:rounded-md p-1">
-                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontWeight: activeText.fontWeight === 'bold' ? 'normal' : 'bold' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontWeight === 'bold' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
+                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontWeight: activeText.fontWeight === 'bold' ? 'normal' : 'bold' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontWeight === 'bold' ? 'bg-white dark:bg-gray-700 shadow-sm text-black dark:text-gray-200' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
                                  <Bold size={16} />
                              </button>
-                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontStyle: activeText.fontStyle === 'italic' ? 'normal' : 'italic' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontStyle === 'italic' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
+                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontStyle: activeText.fontStyle === 'italic' ? 'normal' : 'italic' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontStyle === 'italic' ? 'bg-white dark:bg-gray-700 shadow-sm text-black dark:text-gray-200' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
                                  <Italic size={16} />
                              </button>
                          </div>
@@ -467,7 +472,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => onToggleBrush(!brushSettings.isEnabled)}
-                                className={`flex-1 py-2.5 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase flex items-center justify-center gap-2 transition-all shadow-sm tracking-wide ${brushSettings.isEnabled ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white dark:bg-none dark:bg-cyan-600 dark:text-black shadow-pink-500/20' : 'bg-white text-gray-600 border border-gray-100 dark:bg-white/10 dark:text-gray-400 dark:border-transparent hover:bg-gray-50'}`}
+                                className={`flex-1 py-2.5 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase flex items-center justify-center gap-2 transition-all shadow-sm tracking-wide ${brushSettings.isEnabled ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white dark:bg-none dark:bg-gray-700 dark:text-gray-200 shadow-pink-500/20 dark:shadow-none' : 'bg-white text-gray-600 border border-gray-100 dark:bg-white/10 dark:text-gray-400 dark:border-transparent hover:bg-gray-50'}`}
                             >
                                 {brushSettings.isEnabled ? t.stopDrawing : t.startDrawing}
                             </button>
@@ -580,7 +585,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                             <button 
                                 key={frame.id} 
                                 onClick={() => onSetFrame(frame.id)}
-                                className={`py-3 px-2 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase border transition-all tracking-wide ${activeFrame === frame.id ? 'bg-gray-900 text-white dark:bg-cyan-600 dark:text-black border-transparent shadow-md' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-200'}`}
+                                className={`py-3 px-2 rounded-xl dark:rounded-md text-[10px] font-bold dark:font-tech uppercase border transition-all tracking-wide ${activeFrame === frame.id ? 'bg-gray-900 text-white dark:bg-gray-700 dark:text-gray-200 border-transparent shadow-md' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-200'}`}
                             >
                                 {frame.label}
                             </button>
@@ -607,7 +612,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                                     const s = stickers.find(sticker => sticker.id === item.id);
                                     if (!s) return null;
                                     return (
-                                        <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
+                                        <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-gray-600 dark:bg-gray-800/30' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
                                             <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-3 flex-1 text-left">
                                                 {s.type === 'image' ? <ImageIcon size={16} /> : <span className="text-lg leading-none ml-1">{s.content}</span>}
                                                 <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t.stickerLayer}</span>
@@ -713,6 +718,9 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
             <button onClick={onRedo} disabled={!canRedo} title={t.redo} className={`p-2 rounded-lg dark:rounded-sm transition-all ${!canRedo ? 'text-gray-300 dark:text-gray-700 cursor-not-allowed' : 'text-gray-600 dark:text-cyan-400 hover:bg-white dark:hover:bg-cyan-950/50 hover:text-indigo-600 dark:hover:text-cyan-200 hover:shadow-sm'}`}><Redo2 size={18} /></button>
          </div>
          <div className="flex items-center gap-2">
+           {originalImageBackup && onRestoreOriginal && (
+             <button onClick={onRestoreOriginal} title={t.restoreOriginal || "Restore Original"} className="p-2 rounded-full dark:rounded-sm text-cyan-500 dark:text-cyan-400 hover:text-white hover:bg-cyan-500 dark:hover:bg-cyan-900/40 dark:hover:text-cyan-300 dark:border dark:border-transparent dark:hover:border-cyan-500/50 transition-all shadow-sm"><Undo2 size={16} /></button>
+           )}
            {currentImageBase64 && (
              <button onClick={onRemoveImage} title={t.removeImage} className="p-2 rounded-full dark:rounded-sm text-red-400 hover:text-white hover:bg-red-500 dark:hover:bg-red-900/40 dark:hover:text-red-400 dark:border dark:border-transparent dark:hover:border-red-500/50 transition-all shadow-sm"><Trash2 size={16} /></button>
            )}
@@ -750,7 +758,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 
       {/* SCROLLABLE CONTENT AREA */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-0 relative scroll-smooth">
-        {activeTab === 'ai' && <div className="h-full animate-fade-in"><AIPanel currentImageBase64={currentImageBase64} t={t} language={language} setFilters={setFilters} onAddToHistory={onAddToHistory} setDetectedObjects={() => {}} onAddSticker={onAddSticker} /></div>}
+        {activeTab === 'ai' && <div className="h-full animate-fade-in"><AIPanel currentImageBase64={currentImageBase64} t={t} language={language} setFilters={setFilters} onAddToHistory={onAddToHistory} setDetectedObjects={() => {}} onAddSticker={onAddSticker} onReplaceImage={onReplaceImage} /></div>}
         
         {activeTab === 'creative' && renderCreativePanel()}
 
@@ -801,3 +809,6 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     </div>
   );
 };
+
+// Memoized export for performance
+export const FilterControls = memo(FilterControlsComponent);

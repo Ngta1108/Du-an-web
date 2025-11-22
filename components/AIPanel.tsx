@@ -1,7 +1,9 @@
 
-import React, { useState } from 'react';
-import { Sparkles, Bot, Loader2, Wand2, RotateCcw, CheckCircle2, Sliders, FileText, Copy, Image as ImageIcon, ChevronLeft, Brain, MessageSquareHeart, Plus, ScanEye, Share2, Palette as PaletteIcon, Hash, Sticker } from 'lucide-react';
+import React, { useState, memo } from 'react';
+import { Sparkles, Bot, Loader2, Wand2, RotateCcw, CheckCircle2, Sliders, FileText, Copy, Image as ImageIcon, ChevronLeft, Brain, MessageSquareHeart, Plus, ScanEye, Share2, Palette as PaletteIcon, Hash, Sticker, Maximize2, Aperture, Download } from 'lucide-react';
 import { analyzeImage, generateImagePrompt, detectObjects, generateSocialCaption, extractColorPalette, createStickerFromImage } from '../services/geminiService';
+import { upscaleImage, estimateUpscaleTime } from '../services/upscalerService';
+import { applyAnimeFilter, applyCartoonFilter, applyMangaFilter } from '../services/animeFilterService';
 import { AnalysisResult, FilterState, DetectedObject, SocialContent } from '../types';
 import { Translation, Language } from '../translations';
 
@@ -13,11 +15,12 @@ interface AIPanelProps {
   onAddToHistory: () => void;
   setDetectedObjects: (objs: DetectedObject[]) => void;
   onAddSticker?: (content: string) => void;
+  onReplaceImage?: (newImageBase64: string) => void;
 }
 
-type AgentType = 'enhancer' | 'promptGen' | 'scanner' | 'social' | 'palette' | 'stickerMaker' | null;
+type AgentType = 'enhancer' | 'promptGen' | 'scanner' | 'social' | 'palette' | 'stickerMaker' | 'upscaler' | 'anime' | null;
 
-export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, language, setFilters, onAddToHistory, setDetectedObjects, onAddSticker }) => {
+const AIPanelComponent: React.FC<AIPanelProps> = ({ currentImageBase64, t, language, setFilters, onAddToHistory, setDetectedObjects, onAddSticker, onReplaceImage }) => {
   const [activeAgent, setActiveAgent] = useState<AgentType>(null);
   
   // Enhancer State
@@ -46,6 +49,18 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
   // Sticker State
   const [generatedSticker, setGeneratedSticker] = useState<string | null>(null);
   const [creatingSticker, setCreatingSticker] = useState(false);
+
+  // Upscaler State
+  const [selectedScale, setSelectedScale] = useState<2 | 3 | 4>(2);
+  const [upscaling, setUpscaling] = useState(false);
+  const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+  const [originalDimensions, setOriginalDimensions] = useState<{w: number, h: number} | null>(null);
+
+  // Anime Filter State
+  const [animeStyle, setAnimeStyle] = useState<'anime' | 'cartoon' | 'manga'>('anime');
+  const [animeIntensity, setAnimeIntensity] = useState(70); // Lowered default for better results
+  const [processingAnime, setProcessingAnime] = useState(false);
+  const [animeResult, setAnimeResult] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     if (!currentImageBase64) return;
@@ -132,6 +147,53 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
       }
   };
 
+  const handleUpscale = async () => {
+      if (!currentImageBase64) return;
+      setUpscaling(true);
+      setUpscaledImage(null);
+      
+      // Get original dimensions
+      const img = new Image();
+      img.src = currentImageBase64;
+      await new Promise((resolve) => { img.onload = resolve; });
+      setOriginalDimensions({ w: img.width, h: img.height });
+      
+      try {
+          const result = await upscaleImage(currentImageBase64, selectedScale);
+          setUpscaledImage(result);
+      } catch (e) {
+          console.error(e);
+          alert('Upscaling failed. Please try a smaller image or lower scale.');
+      } finally {
+          setUpscaling(false);
+      }
+  };
+
+  const handleApplyAnime = async () => {
+      if (!currentImageBase64) return;
+      setProcessingAnime(true);
+      setAnimeResult(null);
+      
+      try {
+          let result: string;
+          
+          if (animeStyle === 'anime') {
+              result = await applyAnimeFilter(currentImageBase64, animeIntensity);
+          } else if (animeStyle === 'cartoon') {
+              result = await applyCartoonFilter(currentImageBase64);
+          } else {
+              result = await applyMangaFilter(currentImageBase64);
+          }
+          
+          setAnimeResult(result);
+      } catch (e) {
+          console.error(e);
+          alert('Anime filter failed. Please try again.');
+      } finally {
+          setProcessingAnime(false);
+      }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -199,6 +261,20 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
         label: t.agentSticker,
         color: 'from-yellow-400 via-orange-400 to-red-400 shadow-orange-400/40',
         darkColor: 'from-yellow-500 via-amber-500 to-orange-600 shadow-amber-500/40'
+    },
+    {
+        id: 'upscaler',
+        icon: <Maximize2 size={24} />,
+        label: t.agentUpscaler,
+        color: 'from-violet-400 via-purple-400 to-fuchsia-400 shadow-purple-400/40',
+        darkColor: 'from-violet-500 via-purple-600 to-fuchsia-600 shadow-purple-500/40'
+    },
+    {
+        id: 'anime',
+        icon: <Aperture size={24} />,
+        label: t.agentAnime,
+        color: 'from-pink-400 via-rose-400 to-red-400 shadow-pink-400/40',
+        darkColor: 'from-pink-500 via-rose-500 to-red-600 shadow-rose-500/40'
     }
   ];
 
@@ -223,42 +299,65 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
   if (activeAgent === null) {
     return (
       <div className="h-full flex flex-col p-4 animate-fade-in">
-        <div className="mb-5 flex items-center gap-2 text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-white/10 pb-2">
-          <Bot size={14} />
-          <span className="text-[10px] font-bold uppercase tracking-widest dark:font-tech">AI Magic Hub</span>
+        <div className="mb-5 flex items-center gap-2 text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10 pb-2">
+          <Bot size={14} strokeWidth={2.5} />
+          <span className="text-[10px] font-extrabold uppercase tracking-widest dark:font-tech">AI Magic Hub</span>
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
-          {agents.map((agent) => (
+        <div className="grid grid-cols-4 gap-4 stagger-children">
+          {agents.map((agent, index) => (
             <button
               key={agent.id}
               onClick={() => setActiveAgent(agent.id as AgentType)}
-              className="flex flex-col items-center gap-2 group relative"
+              className="flex flex-col items-center gap-2.5 group relative hover-scale"
             >
+              {/* Glow effect */}
               <div className={`
-                w-14 h-14 flex items-center justify-center text-white shadow-lg
+                absolute top-0 w-16 h-16 rounded-full blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-500
                 bg-gradient-to-br ${agent.color} dark:${agent.darkColor}
-                rounded-[20px] dark:rounded-lg
-                transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1)
-                group-hover:scale-110 group-hover:-translate-y-2 group-active:scale-95
-                border border-white/20 dark:border-white/10 
-                group-hover:shadow-xl z-10 relative
-              `}>
-                {/* Glossy reflection */}
-                <div className="absolute inset-0 rounded-[20px] dark:rounded-lg bg-gradient-to-tr from-white/0 via-white/0 to-white/30 pointer-events-none"></div>
-                
-                {React.cloneElement(agent.icon as React.ReactElement<any>, { 
-                  className: "drop-shadow-md transition-transform group-hover:scale-110 group-hover:rotate-6" 
-                })}
-              </div>
-              
-              {/* Reflection Shadow */}
-              <div className={`
-                 absolute -bottom-2 w-10 h-2 rounded-[100%] blur-md opacity-0 group-hover:opacity-70 transition-opacity duration-300
-                 bg-gradient-to-r ${agent.color} dark:${agent.darkColor}
               `}></div>
 
-              <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 dark:font-tech group-hover:text-pink-500 dark:group-hover:text-cyan-400 transition-colors text-center leading-tight w-full px-1 z-20">
+              <div className={`
+                w-16 h-16 flex items-center justify-center text-white
+                bg-gradient-to-br ${agent.color} dark:${agent.darkColor}
+                rounded-[22px] dark:rounded-xl
+                transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
+                group-hover:scale-115 group-hover:-translate-y-3 group-active:scale-95
+                border-2 border-white/40 dark:border-white/30 
+                shadow-premium-light dark:shadow-premium-dark
+                group-hover:shadow-2xl group-hover:rotate-3 z-10 relative overflow-hidden
+                border-glow
+              `}>
+                {/* Glossy reflection - enhanced */}
+                <div className="absolute inset-0 rounded-[22px] dark:rounded-xl bg-gradient-to-tr from-white/0 via-white/30 to-white/50 pointer-events-none"></div>
+                
+                {/* Shine effect on hover */}
+                <div className="absolute -inset-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000 pointer-events-none"></div>
+                
+                {/* Inner glow */}
+                <div className="absolute inset-2 rounded-[18px] dark:rounded-lg bg-white/10 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                
+                {/* Icon with 3D effect */}
+                <div className="relative z-10">
+                  {React.cloneElement(agent.icon as React.ReactElement<any>, { 
+                    className: "icon-3d transition-all duration-300 group-hover:scale-125 group-hover:rotate-12", 
+                    strokeWidth: 2.5,
+                    size: 28
+                  })}
+                </div>
+                
+                {/* Pulsing dot indicator */}
+                <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-white rounded-full opacity-60 group-hover:opacity-100 animate-pulse"></div>
+              </div>
+              
+              {/* Reflection Shadow - enhanced */}
+              <div className={`
+                 absolute top-14 w-12 h-3 rounded-[100%] blur-lg opacity-0 group-hover:opacity-80 transition-all duration-500
+                 bg-gradient-to-r ${agent.color} dark:${agent.darkColor}
+                 group-hover:scale-125
+              `}></div>
+
+              <span className="text-[9px] font-extrabold text-gray-700 dark:text-gray-200 dark:font-tech group-hover:text-pink-600 dark:group-hover:text-white transition-all duration-300 text-center leading-tight w-full px-1 z-20 group-hover:scale-105">
                 {agent.label}
               </span>
             </button>
@@ -278,7 +377,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
               setActiveAgent(null);
               setDetectedObjects([]); // Reset detection overlay on exit
           }}
-          className="p-2 rounded-xl dark:rounded-md bg-white dark:bg-white/5 hover:bg-pink-50 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 transition-all hover:text-pink-500 dark:hover:text-white hover:-translate-x-0.5 border border-gray-100 dark:border-white/5 shadow-sm"
+          className="p-2 rounded-xl dark:rounded-md bg-white dark:bg-white/5 hover:bg-pink-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-all hover:text-pink-500 dark:hover:text-white hover:-translate-x-0.5 border border-gray-100 dark:border-white/5 shadow-sm"
         >
           <ChevronLeft size={18} />
         </button>
@@ -300,9 +399,9 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
         {!currentImageBase64 ? (
            <div className="h-full flex flex-col items-center justify-center text-center opacity-60 pb-20">
              <div className="w-24 h-24 bg-gray-50 dark:bg-white/5 rounded-[2rem] dark:rounded-none flex items-center justify-center mb-6 border border-gray-100 dark:border-white/10 animate-pulse">
-                <Bot size={40} className="text-gray-300 dark:text-cyan-500/50" />
+                <Bot size={40} className="text-gray-300 dark:text-gray-600" />
              </div>
-             <p className="text-sm font-bold text-gray-400 dark:text-gray-500 dark:font-tech max-w-[200px] leading-relaxed uppercase tracking-wider">
+             <p className="text-sm font-bold text-gray-600 dark:text-gray-300 dark:font-tech max-w-[200px] leading-relaxed uppercase tracking-wider">
                {t.uploadToEnable}
              </p>
            </div>
@@ -317,39 +416,39 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
                     btnText={t.analyzeButton} 
                     onClick={handleAnalyze} 
                     icon={Sparkles} 
-                    gradient="from-fuchsia-500 to-pink-500 dark:from-cyan-600 dark:to-blue-600"
+                    gradient="from-fuchsia-500 to-pink-500 dark:from-gray-700 dark:to-gray-800"
                   />
                 )}
                 {loadingEnhance && <LoadingState message={t.analyzing} />}
                 {analysis && (
                   <div className="space-y-5 animate-slide-up pb-10">
                     {analysis.filterAdjustments && (
-                      <div className="p-4 bg-gradient-to-br from-pink-50 to-white dark:from-cyan-950/30 dark:to-transparent border border-pink-100 dark:border-cyan-500/30 rounded-2xl dark:rounded-md shadow-sm">
+                      <div className="p-4 bg-gradient-to-br from-pink-50 to-white dark:from-gray-900/30 dark:to-transparent border border-pink-100 dark:border-gray-700/30 rounded-2xl dark:rounded-md shadow-sm">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-xs font-bold text-pink-600 dark:text-cyan-400 dark:font-tech uppercase flex items-center gap-2"><Sliders size={14} /> Auto-Enhance</h4>
+                          <h4 className="text-xs font-bold text-pink-600 dark:text-gray-300 dark:font-tech uppercase flex items-center gap-2"><Sliders size={14} /> Auto-Enhance</h4>
                         </div>
                         {applied ? (
                            <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400 text-xs font-bold dark:font-tech py-3 bg-green-50 dark:bg-green-900/20 rounded-xl dark:rounded-none border border-green-100 dark:border-green-500/20"><CheckCircle2 size={16} />{t.aiApplied}</div>
                         ) : (
-                          <button onClick={applyAiSettings} className="w-full py-3 rounded-xl dark:rounded-sm font-bold text-xs transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 dark:from-cyan-600 dark:to-blue-600 text-white dark:font-tech dark:uppercase hover:-translate-y-0.5 shadow-lg shadow-pink-500/20 dark:shadow-cyan-500/20"><Sparkles size={14} />{t.applyAi}</button>
+                          <button onClick={applyAiSettings} className="w-full py-3 rounded-xl dark:rounded-sm font-bold text-xs transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 dark:from-gray-700 dark:to-gray-800 text-white dark:font-tech dark:uppercase hover:-translate-y-0.5 shadow-lg shadow-pink-500/20 dark:shadow-gray-900/20"><Sparkles size={14} />{t.applyAi}</button>
                         )}
                       </div>
                     )}
                     <div className="space-y-2">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech ml-1">{t.description}</h4>
-                      <div className="bg-white dark:bg-[#0F0F0F] p-4 rounded-2xl dark:rounded-md border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none"><p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed dark:font-tech">{analysis.description}</p></div>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-gray-200 dark:font-tech ml-1">{t.description}</h4>
+                      <div className="bg-white dark:bg-[#0F0F0F] p-4 rounded-2xl dark:rounded-md border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none"><p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed dark:font-tech font-medium">{analysis.description}</p></div>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech ml-1">{t.suggestedEdits}</h4>
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-gray-700 dark:text-gray-200 dark:font-tech ml-1">{t.suggestedEdits}</h4>
                       <div className="grid gap-2">
                         {analysis.suggestions.map((suggestion, idx) => (
-                          <div key={idx} className="flex items-start gap-3 text-sm p-3.5 bg-white dark:bg-[#0F0F0F] text-gray-600 dark:text-gray-300 rounded-2xl dark:rounded-md border border-gray-100 dark:border-white/10 hover:border-pink-200 dark:hover:border-cyan-900/50 transition-colors">
-                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-pink-400 dark:bg-cyan-500 shrink-0"></div><span className="dark:font-tech font-medium text-xs">{suggestion}</span>
+                          <div key={idx} className="flex items-start gap-3 text-sm p-3.5 bg-white dark:bg-[#0F0F0F] text-gray-700 dark:text-gray-200 rounded-2xl dark:rounded-md border border-gray-100 dark:border-white/10 hover:border-pink-200 dark:hover:border-cyan-900/50 transition-colors">
+                            <div className="mt-1 w-1.5 h-1.5 rounded-full bg-pink-500 dark:bg-gray-400 shrink-0"></div><span className="dark:font-tech font-semibold text-xs">{suggestion}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <button onClick={handleAnalyze} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-pink-500 dark:text-gray-600 dark:hover:text-cyan-400 bg-transparent hover:bg-pink-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} />{t.reAnalyze}</button>
+                    <button onClick={handleAnalyze} className="w-full py-3 text-xs font-bold text-gray-600 hover:text-pink-500 dark:text-gray-300 dark:hover:text-cyan-400 bg-transparent hover:bg-pink-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} strokeWidth={2.5} />{t.reAnalyze}</button>
                   </div>
                 )}
               </div>
@@ -489,6 +588,203 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
                     )}
                 </div>
             )}
+
+            {/* === AGENT: ANIME FILTER === */}
+            {activeAgent === 'anime' && (
+                <div className="animate-fade-in space-y-6">
+                    {!animeResult && !processingAnime && (
+                        <div className="space-y-6">
+                            <div className="p-8 rounded-[24px] dark:rounded-lg border transition-all text-center bg-gradient-to-b from-white/80 to-white/20 dark:from-white/5 dark:to-transparent border-gray-100 dark:border-white/10 shadow-lg dark:shadow-none backdrop-blur-md">
+                                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl dark:rounded-md flex items-center justify-center text-white shadow-lg bg-gradient-to-br from-pink-400 via-rose-400 to-red-400 dark:from-pink-500 dark:via-rose-500 dark:to-red-600">
+                                    <Aperture size={32} />
+                                </div>
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-8 leading-relaxed dark:font-tech">{t.animeDesc}</p>
+                                
+                                {/* Style Selection */}
+                                <div className="space-y-3 mb-6">
+                                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.chooseStyle}</h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {(['anime', 'cartoon', 'manga'] as const).map((style) => (
+                                            <button 
+                                                key={style}
+                                                onClick={() => setAnimeStyle(style)}
+                                                className={`py-4 rounded-xl dark:rounded-md text-xs font-bold transition-all dark:font-tech uppercase tracking-wide ${animeStyle === style ? 'bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg scale-105' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                                            >
+                                                {style === 'anime' ? t.styleAnime : style === 'cartoon' ? t.styleCartoon : t.styleManga}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Intensity Slider (only for anime/cartoon) */}
+                                {animeStyle !== 'manga' && (
+                                    <div className="space-y-3 mb-6">
+                                        <div className="flex justify-between items-center px-1">
+                                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.intensity}</h4>
+                                            <span className="text-xs font-bold text-pink-500 dark:text-rose-400">{animeIntensity}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="20" 
+                                            max="100" 
+                                            step="5"
+                                            value={animeIntensity}
+                                            onChange={(e) => setAnimeIntensity(Number(e.target.value))}
+                                            className="w-full accent-pink-500 dark:accent-rose-500"
+                                        />
+                                    </div>
+                                )}
+
+                                <button 
+                                    onClick={handleApplyAnime}
+                                    className="w-full py-4 px-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 group bg-gradient-to-r from-pink-400 via-rose-400 to-red-400 dark:from-pink-500 dark:via-rose-500 dark:to-red-600 text-white shadow-xl hover:-translate-y-1 active:scale-95 hover:shadow-2xl dark:font-tech dark:uppercase dark:tracking-wider"
+                                >
+                                    {t.animeBtn} <Aperture size={18} className="group-hover:rotate-180 transition-transform duration-500" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {processingAnime && <LoadingState message={t.animeProcessing} />}
+                    {animeResult && (
+                        <div className="animate-slide-up space-y-6">
+                            <div className="p-6 bg-pink-50 dark:bg-rose-950/20 border border-pink-100 dark:border-rose-500/30 rounded-2xl dark:rounded-md relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-pink-400/30 animate-pulse"></div>
+                                <h4 className="text-sm font-bold text-pink-700 dark:text-rose-300 dark:font-tech uppercase mb-4 text-center">{t.animeResult}</h4>
+                                
+                                {/* Preview */}
+                                <div className="bg-white dark:bg-black/40 rounded-xl dark:rounded-md p-3 overflow-hidden">
+                                    <img src={animeResult} alt="Anime Filtered" className="w-full h-auto rounded-lg shadow-sm" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => {
+                                        if (animeResult && onReplaceImage) {
+                                            onReplaceImage(animeResult);
+                                            setActiveAgent(null);
+                                        }
+                                    }} 
+                                    className="py-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white shadow-lg hover:-translate-y-1 dark:font-tech dark:uppercase"
+                                >
+                                    <CheckCircle2 size={18} /> {t.applyAnime}
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (animeResult) {
+                                            const link = document.createElement('a');
+                                            link.download = `anime-${animeStyle}.png`;
+                                            link.href = animeResult;
+                                            link.click();
+                                        }
+                                    }} 
+                                    className="py-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 bg-white dark:bg-white/10 border-2 border-pink-500 text-pink-500 dark:text-rose-400 hover:bg-pink-50 dark:hover:bg-white/20 dark:font-tech dark:uppercase"
+                                >
+                                    <Download size={18} /> {t.download}
+                                </button>
+                            </div>
+                            <button onClick={handleApplyAnime} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-pink-500 dark:text-gray-600 dark:hover:text-rose-400 bg-transparent hover:bg-pink-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} />{t.reAnalyze}</button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* === AGENT: UPSCALER === */}
+            {activeAgent === 'upscaler' && (
+                <div className="animate-fade-in space-y-6">
+                    {!upscaledImage && !upscaling && (
+                        <div className="space-y-6">
+                            <div className="p-8 rounded-[24px] dark:rounded-lg border transition-all text-center bg-gradient-to-b from-white/80 to-white/20 dark:from-white/5 dark:to-transparent border-gray-100 dark:border-white/10 shadow-lg dark:shadow-none backdrop-blur-md">
+                                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl dark:rounded-md flex items-center justify-center text-white shadow-lg bg-gradient-to-br from-violet-400 via-purple-400 to-fuchsia-400 dark:from-violet-500 dark:via-purple-600 dark:to-fuchsia-600">
+                                    <Maximize2 size={32} />
+                                </div>
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-8 leading-relaxed dark:font-tech">{t.upscaleDesc}</p>
+                                
+                                {/* Scale Selection */}
+                                <div className="space-y-3 mb-6">
+                                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 dark:font-tech">{t.chooseScale}</h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {([2, 3, 4] as const).map((scale) => (
+                                            <button 
+                                                key={scale}
+                                                onClick={() => setSelectedScale(scale)}
+                                                className={`py-4 rounded-xl dark:rounded-md text-sm font-bold transition-all dark:font-tech uppercase tracking-wide ${selectedScale === scale ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-lg scale-105' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                                            >
+                                                {scale === 2 ? t.scale2x : scale === 3 ? t.scale3x : t.scale4x}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Estimated Time */}
+                                {originalDimensions && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-6 dark:font-tech">
+                                        {t.estimatedTime}: ~{estimateUpscaleTime(originalDimensions.w, originalDimensions.h, selectedScale)} {t.seconds}
+                                    </div>
+                                )}
+
+                                <button 
+                                    onClick={handleUpscale}
+                                    className="w-full py-4 px-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 group bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 dark:from-violet-500 dark:via-purple-600 dark:to-fuchsia-600 text-white shadow-xl hover:-translate-y-1 active:scale-95 hover:shadow-2xl dark:font-tech dark:uppercase dark:tracking-wider"
+                                >
+                                    {t.upscaleBtn} <Maximize2 size={18} className="group-hover:rotate-12 transition-transform" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {upscaling && <LoadingState message={t.upscaling} />}
+                    {upscaledImage && (
+                        <div className="animate-slide-up space-y-6">
+                            <div className="p-6 bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-500/30 rounded-2xl dark:rounded-md relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-purple-400/30 animate-pulse"></div>
+                                <h4 className="text-sm font-bold text-purple-700 dark:text-purple-300 dark:font-tech uppercase mb-4 text-center">{t.upscaleResult}</h4>
+                                
+                                {/* Preview Comparison */}
+                                <div className="space-y-3">
+                                    <div className="bg-white dark:bg-black/40 rounded-xl dark:rounded-md p-3 overflow-hidden">
+                                        <p className="text-[10px] font-bold uppercase text-gray-400 dark:text-gray-500 mb-2 dark:font-tech">{t.newSize}</p>
+                                        <img src={upscaledImage} alt="Upscaled" className="w-full h-auto rounded-lg shadow-sm" />
+                                    </div>
+                                    
+                                    {originalDimensions && (
+                                        <div className="text-xs text-center text-gray-600 dark:text-gray-400 dark:font-tech">
+                                            {t.originalSize}: {originalDimensions.w}×{originalDimensions.h} → {t.newSize}: {originalDimensions.w * selectedScale}×{originalDimensions.h * selectedScale}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => {
+                                        if (upscaledImage && onReplaceImage) {
+                                            onReplaceImage(upscaledImage);
+                                            setActiveAgent(null);
+                                        }
+                                    }} 
+                                    className="py-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:from-purple-600 hover:to-fuchsia-600 text-white shadow-lg hover:-translate-y-1 dark:font-tech dark:uppercase"
+                                >
+                                    <CheckCircle2 size={18} /> {t.applyUpscale}
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (upscaledImage) {
+                                            const link = document.createElement('a');
+                                            link.download = `upscaled-${selectedScale}x.png`;
+                                            link.href = upscaledImage;
+                                            link.click();
+                                        }
+                                    }} 
+                                    className="py-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 bg-white dark:bg-white/10 border-2 border-purple-500 text-purple-500 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-white/20 dark:font-tech dark:uppercase"
+                                >
+                                    <Download size={18} /> {t.download}
+                                </button>
+                            </div>
+                            <button onClick={handleUpscale} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-purple-500 dark:text-gray-600 dark:hover:text-purple-400 bg-transparent hover:bg-purple-50 dark:hover:bg-white/10 rounded-xl dark:rounded-sm transition-colors flex items-center justify-center gap-2 dark:font-tech dark:uppercase"><RotateCcw size={14} />{t.reAnalyze}</button>
+                        </div>
+                    )}
+                </div>
+            )}
           </>
         )}
       </div>
@@ -503,41 +799,117 @@ export const AIPanel: React.FC<AIPanelProps> = ({ currentImageBase64, t, languag
   );
 };
 
+// Memoized export for performance
+export const AIPanel = memo(AIPanelComponent);
+
 const WelcomeCard = ({ desc, btnText, onClick, icon: Icon, gradient }: any) => (
     <div className={`
-        p-8 rounded-[24px] dark:rounded-lg border transition-all text-center
-        bg-gradient-to-b from-white/80 to-white/20 dark:from-white/5 dark:to-transparent 
-        border-gray-100 dark:border-white/10 shadow-lg dark:shadow-none backdrop-blur-md
+        relative p-8 rounded-[26px] dark:rounded-xl border-2 transition-all duration-500 text-center group
+        bg-gradient-to-b from-white/90 to-white/40 dark:from-white/8 dark:to-transparent 
+        border-white/60 dark:border-white/15 shadow-2xl dark:shadow-xl backdrop-blur-xl
+        hover:border-pink-200 dark:hover:border-cyan-500/40 hover:shadow-3xl hover:scale-[1.02]
+        card-premium overflow-hidden
     `}>
+        {/* Shine effect on hover */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
+        
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-pink-400 dark:via-gray-600 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        
         <div className={`
-             w-16 h-16 mx-auto mb-6 rounded-2xl dark:rounded-md flex items-center justify-center text-white shadow-lg
-             bg-gradient-to-br ${gradient}
+             relative w-20 h-20 mx-auto mb-7 rounded-[22px] dark:rounded-xl flex items-center justify-center text-white shadow-2xl
+             bg-gradient-to-br ${gradient} animate-gradient bg-[length:200%_auto]
+             group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-500
+             border-2 border-white/40 overflow-hidden
         `}>
-             <Icon size={32} />
+             {/* Glossy overlay */}
+             <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/60 opacity-70"></div>
+             
+             {/* Pulsing inner glow */}
+             <div className="absolute inset-3 rounded-[16px] dark:rounded-lg bg-white/20 blur-md animate-pulse"></div>
+             
+             {/* Icon with enhanced 3D effect */}
+             <Icon size={40} className="icon-3d relative z-10 group-hover:scale-125 group-hover:rotate-6 transition-all duration-500" strokeWidth={2.5} />
+             
+             {/* Rotating ring */}
+             <div className="absolute inset-0 border-2 border-white/30 rounded-[22px] dark:rounded-xl animate-spin opacity-0 group-hover:opacity-50" style={{animationDuration: '3s'}}></div>
+             
+             {/* Corner sparkles */}
+             <div className="absolute top-2 right-2 w-2 h-2">
+               <div className="absolute inset-0 bg-white rounded-full opacity-80 animate-ping"></div>
+               <div className="absolute inset-0 bg-white rounded-full opacity-100"></div>
+             </div>
         </div>
-        <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-8 leading-relaxed dark:font-tech">{desc}</p>
+        
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-8 leading-relaxed dark:font-tech px-2 text-reveal">{desc}</p>
+        
         <button onClick={onClick} className={`
-            w-full py-4 px-4 rounded-2xl dark:rounded-md font-bold text-sm transition-all flex items-center justify-center gap-2 group
-            bg-gradient-to-r ${gradient} text-white
-            shadow-xl hover:-translate-y-1 active:scale-95 hover:shadow-2xl
+            btn-magnetic relative w-full py-4 px-4 rounded-2xl dark:rounded-xl font-black text-sm transition-all duration-300 flex items-center justify-center gap-3 group/btn
+            bg-gradient-to-r ${gradient} text-white animate-gradient bg-[length:200%_auto]
+            shadow-2xl hover:shadow-3xl hover:-translate-y-1.5 active:scale-95
             dark:font-tech dark:uppercase dark:tracking-wider
+            border-2 border-white/30 overflow-hidden
         `}>
-            {btnText} <Icon size={18} className="group-hover:rotate-12 transition-transform" />
+            <span className="relative z-10">{btnText}</span>
+            
+            {/* Enhanced icon with glow */}
+            <div className="relative z-10">
+              <div className="absolute inset-0 rounded-full blur-lg bg-white opacity-0 group-hover/btn:opacity-50 transition-opacity"></div>
+              <Icon size={22} className="icon-3d relative group-hover/btn:rotate-12 group-hover/btn:scale-125 transition-all duration-300" strokeWidth={2.5} />
+            </div>
+            
+            {/* Shimmer effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
         </button>
     </div>
 );
 
 const LoadingState = ({ message }: { message: string }) => (
-  <div className="flex flex-col items-center justify-center py-10 space-y-6 animate-fade-in">
+  <div className="flex flex-col items-center justify-center py-12 space-y-8 animate-fade-in">
     <div className="relative">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 dark:from-cyan-500/20 dark:to-blue-500/20 animate-ping absolute inset-0"></div>
-      <div className="w-20 h-20 rounded-full dark:rounded-md bg-white dark:bg-black flex items-center justify-center relative shadow-2xl border border-pink-100 dark:border-cyan-500/50">
-        <div className="absolute inset-0 rounded-full dark:rounded-md border-t-2 border-pink-500 dark:border-cyan-400 animate-spin"></div>
-        <Sparkles size={32} className="text-pink-500 dark:text-cyan-400 animate-pulse" />
+      {/* Outer glow rings */}
+      <div className="absolute inset-0 w-32 h-32 -left-6 -top-6">
+        <div className="w-full h-full rounded-full bg-gradient-to-r from-pink-500/30 to-purple-500/30 dark:from-gray-600/30 dark:to-gray-700/30 animate-ping"></div>
+      </div>
+      <div className="absolute inset-0 w-28 h-28 -left-4 -top-4">
+        <div className="w-full h-full rounded-full bg-gradient-to-r from-pink-400/20 to-rose-400/20 dark:from-gray-500/20 dark:to-gray-600/20 animate-ping" style={{animationDelay: '0.3s'}}></div>
+      </div>
+      
+      {/* Main loader circle */}
+      <div className="relative w-20 h-20 rounded-full dark:rounded-xl bg-gradient-to-br from-white to-pink-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center shadow-2xl border-2 border-pink-200 dark:border-gray-700 animate-float">
+        {/* Spinning border gradient */}
+        <div className="absolute inset-0 rounded-full dark:rounded-xl overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-rose-500 to-pink-500 dark:from-gray-600 dark:via-gray-500 dark:to-gray-600 animate-spin" style={{clipPath: 'polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 50% 0%)'}}></div>
+        </div>
+        
+        {/* Inner content */}
+        <div className="relative z-10 bg-white dark:bg-black rounded-full dark:rounded-lg w-16 h-16 flex items-center justify-center">
+          {/* Icon glow */}
+          <div className="absolute inset-0 rounded-full blur-xl bg-pink-500 dark:bg-gray-600 opacity-30 animate-pulse"></div>
+          
+          {/* Main icon with 3D effect */}
+          <Sparkles size={36} className="icon-3d text-pink-500 dark:text-gray-400 animate-pulse relative z-10 icon-float" strokeWidth={2.5} />
+          
+          {/* Small orbiting particles */}
+          <div className="absolute inset-0">
+            <div className="absolute top-2 right-2 w-1 h-1 rounded-full bg-pink-400 dark:bg-gray-500 animate-ping"></div>
+            <div className="absolute bottom-2 left-2 w-1 h-1 rounded-full bg-rose-400 dark:bg-blue-300 animate-ping" style={{animationDelay: '0.5s'}}></div>
+          </div>
+        </div>
       </div>
     </div>
-    <p className="text-xs font-bold text-pink-400 dark:text-cyan-400 tracking-widest uppercase animate-pulse dark:font-tech text-center">
-      {message}
-    </p>
+    
+    {/* Loading text with shimmer */}
+    <div className="relative">
+      <p className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 via-rose-500 to-pink-600 dark:from-cyan-400 dark:via-blue-400 dark:to-cyan-400 tracking-widest uppercase dark:font-tech text-center animate-gradient bg-[length:200%_auto]">
+        {message}
+      </p>
+      {/* Dots animation */}
+      <div className="flex items-center justify-center gap-1.5 mt-3">
+        <div className="w-2 h-2 rounded-full bg-pink-500 dark:bg-cyan-400 animate-bounce"></div>
+        <div className="w-2 h-2 rounded-full bg-pink-500 dark:bg-cyan-400 animate-bounce" style={{animationDelay: '0.1s'}}></div>
+        <div className="w-2 h-2 rounded-full bg-pink-500 dark:bg-cyan-400 animate-bounce" style={{animationDelay: '0.2s'}}></div>
+      </div>
+    </div>
   </div>
 );

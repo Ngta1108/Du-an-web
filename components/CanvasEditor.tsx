@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings, DetectedObject } from '../types';
 import { Translation } from '../translations';
 import { X, Trash2 } from 'lucide-react';
@@ -45,7 +45,7 @@ interface CanvasEditorProps {
   layerOrder?: {id: string, type: 'text' | 'sticker'}[];
 }
 
-export const CanvasEditor: React.FC<CanvasEditorProps> = ({ 
+const CanvasEditorComponent: React.FC<CanvasEditorProps> = ({ 
   imageSrc, 
   filters, 
   onImageProcessed, 
@@ -836,3 +836,6 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     </div>
   );
 };
+
+// Memoized export for performance optimization
+export const CanvasEditor = memo(CanvasEditorComponent);
