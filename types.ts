@@ -48,6 +48,15 @@ export interface TextLayer {
   color: string;
   fontWeight: string | number; // 'bold', 'normal', 700, etc.
   fontStyle: string; // 'italic', 'normal'
+  
+  // New Features
+  strokeWidth: number;
+  strokeColor: string;
+  shadowBlur: number;
+  shadowColor: string;
+  backgroundColor: string; // 'transparent' or hex
+  opacity: number; // 0-1
+  letterSpacing: number; // px
 }
 
 export interface StickerLayer {

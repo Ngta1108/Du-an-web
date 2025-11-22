@@ -104,15 +104,6 @@ const App: React.FC = () => {
 
   // Called by sliders/filters (only updates filters in snapshot)
   const handleAddToHistory = useCallback(() => {
-      // We use a timeout to ensure we capture the latest state after React updates
-      // However, for sliders, we often call this explicitly. 
-      // To be safe, we construct the snapshot with current state refs if possible, 
-      // but since we don't have refs for everything, we rely on the closure or pass updated values.
-      
-      // Note: This function is usually passed to FilterControls for onMouseUp.
-      // At that point, 'filters' state might be stale in this closure if not careful.
-      // But since handleAddToHistory is in dependency array of useCallback with [filters], it should be fresh.
-      
       pushToHistory();
   }, [filters, textLayers, stickers, drawingPaths, layerOrder, history, historyIndex]);
 
@@ -324,7 +315,15 @@ const App: React.FC = () => {
       text: type === 'heading' ? (language === 'vi' ? 'Tiêu đề' : 'Heading') : (language === 'vi' ? 'Văn bản' : 'Body Text'),
       x: 50 + textLayers.length * 10, y: 50 + textLayers.length * 10,
       fontSize: type === 'heading' ? 60 : 30, color: '#ffffff',
-      fontFamily: 'Arial', fontWeight: type === 'heading' ? 'bold' : 'normal', fontStyle: 'normal'
+      fontFamily: 'Be Vietnam Pro', fontWeight: type === 'heading' ? 'bold' : 'normal', fontStyle: 'normal',
+      // New Defaults
+      strokeWidth: 0,
+      strokeColor: '#000000',
+      shadowBlur: 0,
+      shadowColor: '#000000',
+      backgroundColor: 'transparent',
+      opacity: 1,
+      letterSpacing: 0
     };
     const newTextLayers = [...textLayers, newLayer];
     const newOrder = [...layerOrder, { id: newLayer.id, type: 'text' as const }];
@@ -339,8 +338,6 @@ const App: React.FC = () => {
   const handleUpdateTextLayer = (id: string, updates: Partial<TextLayer>) => {
       const newLayers = textLayers.map(l => l.id === id ? { ...l, ...updates } : l);
       setTextLayers(newLayers);
-      // Optimization: Don't push to history on every keystroke/slide, usually done onBlur or MouseUp.
-      // But for simplicity here we might let the user manual actions trigger specific history saves or rely on the parent calling onAddToHistory
   };
   
   const handleDeleteText = (id: string) => { 

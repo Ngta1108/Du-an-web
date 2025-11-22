@@ -1,8 +1,8 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings, DetectedObject } from '../types';
 import { Translation } from '../translations';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 
 interface CanvasEditorProps {
   imageSrc: string | null;
@@ -74,11 +74,15 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   layerOrder = []
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const trashRef = useRef<HTMLDivElement>(null); // Ref for the Trash Drop Zone
   
   // Dragging State (Shared for Text and Stickers)
   const [dragTarget, setDragTarget] = useState<{ type: 'text' | 'sticker', id: string } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0, scaleX: 1, scaleY: 1, originalWidth: 0, originalHeight: 0 });
+
+  // Trash Drop Zone State
+  const [isHoveringBin, setIsHoveringBin] = useState(false);
 
   // Crop Dragging State
   const [isDraggingCrop, setIsDraggingCrop] = useState(false);
@@ -113,7 +117,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
   }, [stickers]);
 
   // Helper to transform mouse/touch coordinates from Screen Space -> Image Space (taking into account rotation/flip)
-  const getTransformedPoint = (clientX: number, clientY: number) => {
+  const getTransformedPoint = useCallback((clientX: number, clientY: number) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const rect = canvasRef.current.getBoundingClientRect();
     const canvas = canvasRef.current;
@@ -142,7 +146,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     const imgY = finalY + canvasDimensions.originalHeight / 2;
 
     return { x: imgX, y: imgY };
-  };
+  }, [filters.rotate, filters.flipH, canvasDimensions]);
 
   const getCropRect = (width: number, height: number, zoom: number, aspect: number | null, offset: {x: number, y: number}) => {
     let cropW = width / zoom;
@@ -260,19 +264,58 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
               const layer = textLayers.find(l => l.id === layerItem.id);
               if (!layer) return;
 
+              // Skip rendering if dragging this specific text into bin
+              if (dragTarget && dragTarget.type === 'text' && dragTarget.id === layer.id && isHoveringBin) {
+                  return; 
+              }
+
               ctx.save();
               ctx.font = `${layer.fontStyle} ${layer.fontWeight} ${layer.fontSize}px "${layer.fontFamily}"`;
-              ctx.fillStyle = layer.color;
               ctx.textBaseline = 'top';
-              ctx.shadowColor = 'rgba(0,0,0,0.5)';
-              ctx.shadowBlur = 4;
+              
+              // Advanced Text Rendering
+              ctx.globalAlpha = layer.opacity ?? 1;
+              if ((ctx as any).letterSpacing) {
+                  (ctx as any).letterSpacing = `${layer.letterSpacing ?? 0}px`;
+              }
               
               const layerX = originX + layer.x;
               const layerY = originY + layer.y;
 
+              // Background Color
+              if (layer.backgroundColor && layer.backgroundColor !== 'transparent') {
+                  const metrics = ctx.measureText(layer.text);
+                  const bgPad = 4;
+                  const bgH = layer.fontSize * 1.2;
+                  ctx.fillStyle = layer.backgroundColor;
+                  ctx.fillRect(layerX - bgPad, layerY - bgPad, metrics.width + (bgPad * 2), bgH + (bgPad * 2));
+              }
+
+              // Shadow
+              if (layer.shadowBlur > 0) {
+                  ctx.shadowColor = layer.shadowColor || '#000000';
+                  ctx.shadowBlur = layer.shadowBlur;
+                  ctx.shadowOffsetX = 2;
+                  ctx.shadowOffsetY = 2;
+              }
+
+              // Stroke (Outline)
+              if (layer.strokeWidth > 0) {
+                  ctx.strokeStyle = layer.strokeColor || '#000000';
+                  ctx.lineWidth = layer.strokeWidth;
+                  ctx.strokeText(layer.text, layerX, layerY);
+              }
+
+              // Fill
+              ctx.fillStyle = layer.color;
               ctx.fillText(layer.text, layerX, layerY);
               
-              if (activeTextId === layer.id) {
+              if (activeTextId === layer.id && !isHoveringBin) {
+                // Reset shadows/styles for selection box
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+                
                 const metrics = ctx.measureText(layer.text);
                 const boxW = metrics.width + 10;
                 const boxH = layer.fontSize * 1.2 + 10;
@@ -309,6 +352,11 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
               const sticker = stickers.find(s => s.id === layerItem.id);
               if (!sticker) return;
 
+              // Skip rendering if dragging this specific sticker into bin
+              if (dragTarget && dragTarget.type === 'sticker' && dragTarget.id === sticker.id && isHoveringBin) {
+                  return;
+              }
+
               ctx.save();
               const stickerX = originX + sticker.x;
               const stickerY = originY + sticker.y;
@@ -328,7 +376,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
                   ctx.fillText(sticker.content, stickerX, stickerY);
               }
 
-              if (activeStickerId === sticker.id) {
+              if (activeStickerId === sticker.id && !isHoveringBin) {
                   ctx.strokeStyle = '#f472b6';
                   ctx.lineWidth = 2; 
                   ctx.setLineDash([5, 5]);
@@ -541,7 +589,7 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       onImageProcessed(canvas.toDataURL('image/png'), false);
     };
 
-  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeStickerId, activeFrame, drawingPaths, isDrawing, currentPath, isComparing, detectedObjects, cropOffset, layerOrder]);
+  }, [imageSrc, filters, isCropping, cropParams, cropTrigger, onImageProcessed, textLayers, activeTextId, stickers, activeStickerId, activeFrame, drawingPaths, isDrawing, currentPath, isComparing, detectedObjects, cropOffset, layerOrder, getTransformedPoint, dragTarget, isHoveringBin]);
 
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
     if (isComparing) return;
@@ -637,11 +685,26 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     if (onSelectSticker) onSelectSticker(null);
   };
 
-  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
     if (isComparing) return;
 
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const clientX = 'touches' in e ? (e as any).touches[0].clientX : (e as MouseEvent).clientX;
+    const clientY = 'touches' in e ? (e as any).touches[0].clientY : (e as MouseEvent).clientY;
+
+    // Check if hovering over bin
+    if (dragTarget && trashRef.current) {
+        const trashRect = trashRef.current.getBoundingClientRect();
+        // Add a small buffer
+        const buffer = 20; 
+        if (clientX >= trashRect.left - buffer && clientX <= trashRect.right + buffer && 
+            clientY >= trashRect.top - buffer && clientY <= trashRect.bottom + buffer) {
+            setIsHoveringBin(true);
+        } else {
+            setIsHoveringBin(false);
+        }
+    } else {
+        setIsHoveringBin(false);
+    }
 
     if (isCropping && isDraggingCrop && canvasRef.current) {
         const deltaX = clientX - dragStart.x;
@@ -684,14 +747,22 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
     } else if (dragTarget.type === 'sticker' && onUpdateStickerPosition) {
       onUpdateStickerPosition(dragTarget.id, pos.x - dragOffset.x, pos.y - dragOffset.y);
     }
-  };
+  }, [isComparing, isCropping, isDraggingCrop, dragStart, canvasDimensions, filters, isDrawing, brushSettings, getTransformedPoint, dragTarget, dragOffset, onUpdateTextPosition, onUpdateStickerPosition]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback((e?: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
       if (isComparing) return;
 
       if (isCropping) {
           setIsDraggingCrop(false);
           return;
+      }
+
+      if (dragTarget && isHoveringBin) {
+          if (dragTarget.type === 'text' && onDeleteText) {
+              onDeleteText(dragTarget.id);
+          } else if (dragTarget.type === 'sticker' && onDeleteSticker) {
+              onDeleteSticker(dragTarget.id);
+          }
       }
 
       if (isDrawing && brushSettings && currentPath.length > 1 && onAddDrawingPath) {
@@ -705,27 +776,63 @@ export const CanvasEditor: React.FC<CanvasEditorProps> = ({
       setIsDrawing(false);
       setCurrentPath([]);
       setDragTarget(null);
-  };
+      setIsHoveringBin(false);
+  }, [isComparing, isCropping, isDrawing, brushSettings, currentPath, onAddDrawingPath, isHoveringBin, dragTarget, onDeleteText, onDeleteSticker]);
+
+  useEffect(() => {
+    if (isDraggingCrop || isDrawing || dragTarget) {
+        const onMove = (e: MouseEvent | TouchEvent) => {
+            if (e.type === 'touchmove') e.preventDefault(); 
+            handleMouseMove(e);
+        }
+        const onUp = (e: MouseEvent | TouchEvent) => handleMouseUp(e);
+        
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
+        
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onUp);
+        };
+    }
+  }, [isDraggingCrop, isDrawing, dragTarget, handleMouseMove, handleMouseUp]);
 
   if (!imageSrc) return null;
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-4 overflow-hidden">
+    <div className="w-full h-full flex items-center justify-center p-4 overflow-hidden relative">
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onTouchStart={handleMouseDown}
-        onTouchMove={handleMouseMove}
-        onTouchEnd={handleMouseUp}
         className="max-w-full max-h-full object-contain shadow-[0_20px_50px_-12px_rgba(0,0,0,0.3)] dark:shadow-[0_0_30px_rgba(6,182,212,0.3)] rounded-sm dark:border dark:border-white/10 transition-transform duration-200 ease-out"
         style={{ 
           transform: `scale(${viewZoom})`,
           cursor: isCropping ? (isDraggingCrop ? 'grabbing' : 'move') : (brushSettings?.isEnabled ? 'crosshair' : (dragTarget ? 'grabbing' : 'default'))
         }}
       />
+
+      {/* DRAG TO DELETE TRASH BIN */}
+      <div 
+        ref={trashRef}
+        className={`
+           absolute bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ease-out
+           flex items-center justify-center rounded-full shadow-2xl border
+           ${dragTarget ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}
+           ${isHoveringBin 
+                ? 'w-20 h-20 bg-red-500 border-red-400 scale-110 rotate-12' 
+                : 'w-16 h-16 bg-white/80 dark:bg-black/80 border-gray-200 dark:border-white/20 backdrop-blur-md'}
+        `}
+      >
+         <Trash2 
+            size={isHoveringBin ? 32 : 24} 
+            className={`transition-all ${isHoveringBin ? 'text-white animate-bounce' : 'text-gray-500 dark:text-gray-300'}`} 
+         />
+      </div>
     </div>
   );
 };

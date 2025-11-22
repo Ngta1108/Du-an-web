@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { FilterState, HistogramData, TextLayer, StickerLayer, FrameType, BrushSettings } from '../types';
 import { Translation, Language } from '../translations';
-import { Sun, Contrast, EyeOff, RotateCw, FlipHorizontal, Droplets, Sliders, ChevronDown, Layers, Crop, Palette, Aperture, Wand2, Type, Sparkles, Undo2, Redo2, RotateCcw, Thermometer, Tv, BoxSelect, Activity, Trash2, Type as TypeIcon, Bold, Italic, Sticker, Image as ImageIcon, Frame, PenTool, LayoutTemplate, ArrowUp, ArrowDown } from 'lucide-react';
+import { Sun, Contrast, EyeOff, RotateCw, FlipHorizontal, Droplets, Sliders, ChevronDown, Layers, Crop, Palette, Aperture, Wand2, Type, Sparkles, Undo2, Redo2, RotateCcw, Thermometer, Tv, BoxSelect, Activity, Trash2, Type as TypeIcon, Bold, Italic, Sticker, Image as ImageIcon, Frame, PenTool, LayoutTemplate, ArrowUp, ArrowDown, Settings, PaintBucket, Eraser, Smartphone, Monitor, Facebook, Instagram, Youtube, Linkedin } from 'lucide-react';
 import { AIPanel } from './AIPanel';
 import { Histogram } from './Histogram';
 import { PRESETS, getCssStringFromFilter } from '../presets';
@@ -83,12 +84,23 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     layers: true
   });
 
+  // Text Tools Sections
+  const [textSections, setTextSections] = useState({
+      style: true,
+      effects: false,
+      settings: false
+  });
+
   const toggleSection = (section: keyof typeof sections) => {
     setSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   const toggleCreativeSection = (section: keyof typeof creativeSections) => {
     setCreativeSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const toggleTextSection = (section: keyof typeof textSections) => {
+    setTextSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
   
   const updateFilter = (key: keyof FilterState, value: number | boolean) => {
@@ -205,12 +217,32 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     </button>
   );
 
+  const SMART_CROPS = [
+    { label: t.original, val: null, icon: <ImageIcon />, color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-white/10', border: 'border-gray-300 dark:border-gray-600', ratioStyle: 'aspect-[1/1]' },
+    { label: t.square, val: 1, icon: <BoxSelect />, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-200 dark:border-indigo-500/30', ratioStyle: 'aspect-square' },
+    { label: t.storyIG, val: 9/16, icon: <Smartphone />, color: 'text-pink-500', bg: 'bg-pink-50 dark:bg-pink-900/20', border: 'border-pink-200 dark:border-pink-500/30', ratioStyle: 'aspect-[9/16]' },
+    { label: t.coverFB, val: 820/312, icon: <LayoutTemplate />, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-500/30', ratioStyle: 'aspect-[2.6/1]' },
+    { label: t.thumbYT, val: 16/9, icon: <Tv />, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-500/30', ratioStyle: 'aspect-video' },
+    { label: t.portrait, val: 4/5, icon: <ImageIcon />, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-500/30', ratioStyle: 'aspect-[4/5]' },
+  ];
+
   // === RENDER TEXT EDITING PANEL ===
   const renderTextPanel = () => {
     const activeText = textLayers.find(l => l.id === activeTextId);
+    const fonts = [
+        { name: 'Default', val: 'Be Vietnam Pro' },
+        { name: 'Tech', val: 'Chakra Petch' },
+        { name: 'Handwriting', val: 'Dancing Script' },
+        { name: 'Serif', val: 'Playfair Display' },
+        { name: 'Display', val: 'Bangers' },
+        { name: 'Bold', val: 'Oswald' },
+        { name: 'Code', val: 'Fira Code' },
+        { name: 'System', val: 'Arial' }
+    ];
+
     return (
-      <div className="h-full animate-fade-in space-y-6 p-2 pt-4">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="h-full animate-fade-in space-y-2 p-2 pt-4 pb-20">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <button onClick={() => onAddText('heading')} className="py-6 px-3 bg-gray-900 dark:bg-cyan-950/30 text-white dark:text-cyan-300 rounded-2xl dark:rounded-lg flex flex-col items-center justify-center gap-2 hover:bg-black dark:hover:bg-cyan-900/50 hover:-translate-y-0.5 shadow-lg dark:shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all dark:font-tech uppercase dark:border dark:border-cyan-500/30 dark:tracking-widest">
             <TypeIcon size={24} strokeWidth={2.5} />
             <span className="text-[10px] font-bold">{t.addHeading}</span>
@@ -222,50 +254,145 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         </div>
 
         {activeText ? (
-          <div className="space-y-5 pt-4 border-t border-gray-100 dark:border-white/5">
-             <div className="space-y-2">
-               <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textContent}</label>
-               <input 
-                 type="text"
-                 value={activeText.text}
-                 onChange={(e) => onUpdateTextLayer(activeText.id, { text: e.target.value })}
-                 className="w-full p-3 bg-white/50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-xl dark:rounded-md focus:outline-none focus:border-pink-400 dark:focus:border-cyan-400 dark:text-white text-sm font-medium transition-colors"
-               />
+          <>
+             <div className="mb-4">
+                 <input 
+                   type="text"
+                   value={activeText.text}
+                   onChange={(e) => onUpdateTextLayer(activeText.id, { text: e.target.value })}
+                   className="w-full p-3 bg-white/50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-xl dark:rounded-md focus:outline-none focus:border-pink-400 dark:focus:border-cyan-400 dark:text-white text-sm font-medium transition-colors text-center"
+                   placeholder="Enter Text..."
+                 />
              </div>
-             <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textColor}</label>
-                 <div className="flex items-center gap-2">
-                    <div className="w-full h-10 rounded-xl dark:rounded-md border border-gray-200 dark:border-white/10 overflow-hidden relative cursor-pointer hover:scale-105 transition-transform shadow-sm">
-                        <input type="color" value={activeText.color} onChange={(e) => onUpdateTextLayer(activeText.id, { color: e.target.value })} className="absolute -top-4 -left-4 w-24 h-24 cursor-pointer border-0 p-0" />
+
+             {/* STYLE SECTION */}
+             <div>
+                {renderSectionHeader(t.textStyle, <Palette size={14} />, textSections.style, () => toggleTextSection('style'))}
+                {textSections.style && (
+                    <div className="pl-2 pr-1 animate-slide-down space-y-4 pb-2">
+                         {/* Font Picker */}
+                         <div className="space-y-2">
+                             <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.fontFamily}</label>
+                             <div className="grid grid-cols-2 gap-2">
+                                 {fonts.map(f => (
+                                     <button 
+                                        key={f.val}
+                                        onClick={() => onUpdateTextLayer(activeText.id, { fontFamily: f.val })}
+                                        className={`p-2 text-xs rounded-lg dark:rounded-sm border transition-all ${activeText.fontFamily === f.val ? 'bg-pink-50 border-pink-200 text-pink-600 dark:bg-cyan-900/30 dark:border-cyan-500/30 dark:text-cyan-400' : 'bg-white dark:bg-white/5 border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10'}`}
+                                        style={{ fontFamily: f.val }}
+                                     >
+                                         {f.name}
+                                     </button>
+                                 ))}
+                             </div>
+                         </div>
+
+                         {/* Colors */}
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textColor}</label>
+                                <div className="flex gap-2 items-center">
+                                    <div className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/20 overflow-hidden relative shadow-sm cursor-pointer" style={{backgroundColor: activeText.color}}>
+                                         <input type="color" value={activeText.color} onChange={(e) => onUpdateTextLayer(activeText.id, { color: e.target.value })} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" />
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400">{activeText.color}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textBg}</label>
+                                <div className="flex gap-2 items-center">
+                                     <button onClick={() => onUpdateTextLayer(activeText.id, { backgroundColor: 'transparent' })} className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/20 flex items-center justify-center text-red-400 bg-white dark:bg-transparent hover:bg-gray-50"><Eraser size={14}/></button>
+                                     <div className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/20 overflow-hidden relative shadow-sm cursor-pointer" style={{backgroundColor: activeText.backgroundColor === 'transparent' ? '#fff' : activeText.backgroundColor}}>
+                                         {activeText.backgroundColor === 'transparent' && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-[8px]">None</div>}
+                                         <input type="color" value={activeText.backgroundColor === 'transparent' ? '#ffffff' : activeText.backgroundColor} onChange={(e) => onUpdateTextLayer(activeText.id, { backgroundColor: e.target.value })} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" />
+                                    </div>
+                                </div>
+                            </div>
+                         </div>
+
+                         {/* Style Toggles */}
+                         <div className="flex bg-gray-100/80 dark:bg-white/5 rounded-xl dark:rounded-md p-1">
+                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontWeight: activeText.fontWeight === 'bold' ? 'normal' : 'bold' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontWeight === 'bold' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
+                                 <Bold size={16} />
+                             </button>
+                             <button onClick={() => onUpdateTextLayer(activeText.id, { fontStyle: activeText.fontStyle === 'italic' ? 'normal' : 'italic' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontStyle === 'italic' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
+                                 <Italic size={16} />
+                             </button>
+                         </div>
                     </div>
-                 </div>
-               </div>
-               <div className="space-y-2">
-                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textStyle}</label>
-                 <div className="flex bg-gray-100/80 dark:bg-white/5 rounded-xl dark:rounded-md p-1">
-                    <button onClick={() => onUpdateTextLayer(activeText.id, { fontWeight: activeText.fontWeight === 'bold' ? 'normal' : 'bold' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontWeight === 'bold' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
-                      <Bold size={16} />
-                    </button>
-                    <button onClick={() => onUpdateTextLayer(activeText.id, { fontStyle: activeText.fontStyle === 'italic' ? 'normal' : 'italic' })} className={`flex-1 py-1.5 flex justify-center rounded-lg dark:rounded-sm transition-all ${activeText.fontStyle === 'italic' ? 'bg-white dark:bg-cyan-900/50 shadow-sm text-black dark:text-cyan-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10'}`}>
-                      <Italic size={16} />
-                    </button>
-                 </div>
-               </div>
+                )}
              </div>
-             <div className="space-y-3">
-               <div className="flex justify-between px-1">
-                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest">{t.fontSize}</label>
-                 <span className="text-[10px] font-bold text-gray-700 dark:text-white">{activeText.fontSize}px</span>
-               </div>
-               <input type="range" min={12} max={200} value={activeText.fontSize} onChange={(e) => onUpdateTextLayer(activeText.id, { fontSize: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500" />
+             
+             <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
+             {/* EFFECTS SECTION */}
+             <div>
+                 {renderSectionHeader(t.textEffects, <Wand2 size={14} />, textSections.effects, () => toggleTextSection('effects'))}
+                 {textSections.effects && (
+                     <div className="pl-2 pr-1 animate-slide-down space-y-1 pb-2">
+                         <div className="space-y-2 py-2">
+                             <div className="flex justify-between items-center">
+                                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textStroke}</label>
+                                 <div className="w-6 h-6 rounded-full overflow-hidden relative border border-gray-200 dark:border-white/20" style={{backgroundColor: activeText.strokeColor || '#000'}}>
+                                     <input type="color" value={activeText.strokeColor || '#000000'} onChange={(e) => onUpdateTextLayer(activeText.id, { strokeColor: e.target.value })} className="opacity-0 absolute inset-0 cursor-pointer"/>
+                                 </div>
+                             </div>
+                             <input type="range" min={0} max={10} step={0.5} value={activeText.strokeWidth || 0} onChange={(e) => onUpdateTextLayer(activeText.id, { strokeWidth: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none" />
+                         </div>
+
+                         <div className="space-y-2 py-2">
+                             <div className="flex justify-between items-center">
+                                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest ml-1">{t.textShadow}</label>
+                                 <div className="w-6 h-6 rounded-full overflow-hidden relative border border-gray-200 dark:border-white/20" style={{backgroundColor: activeText.shadowColor || '#000'}}>
+                                     <input type="color" value={activeText.shadowColor || '#000000'} onChange={(e) => onUpdateTextLayer(activeText.id, { shadowColor: e.target.value })} className="opacity-0 absolute inset-0 cursor-pointer"/>
+                                 </div>
+                             </div>
+                             <input type="range" min={0} max={50} value={activeText.shadowBlur || 0} onChange={(e) => onUpdateTextLayer(activeText.id, { shadowBlur: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none" />
+                         </div>
+                     </div>
+                 )}
              </div>
+
+             <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
+
+             {/* SETTINGS SECTION */}
+             <div>
+                 {renderSectionHeader(t.textSettings, <Settings size={14} />, textSections.settings, () => toggleTextSection('settings'))}
+                 {textSections.settings && (
+                     <div className="pl-2 pr-1 animate-slide-down space-y-1 pb-2">
+                         <div className="space-y-2 py-2">
+                             <div className="flex justify-between px-1">
+                                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest">{t.fontSize}</label>
+                                 <span className="text-[10px] font-bold text-gray-700 dark:text-white">{activeText.fontSize}px</span>
+                             </div>
+                             <input type="range" min={12} max={200} value={activeText.fontSize} onChange={(e) => onUpdateTextLayer(activeText.id, { fontSize: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none" />
+                         </div>
+
+                         <div className="space-y-2 py-2">
+                             <div className="flex justify-between px-1">
+                                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest">{t.textSpacing}</label>
+                                 <span className="text-[10px] font-bold text-gray-700 dark:text-white">{activeText.letterSpacing || 0}px</span>
+                             </div>
+                             <input type="range" min={-5} max={50} value={activeText.letterSpacing || 0} onChange={(e) => onUpdateTextLayer(activeText.id, { letterSpacing: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none" />
+                         </div>
+
+                         <div className="space-y-2 py-2">
+                             <div className="flex justify-between px-1">
+                                 <label className="text-[9px] font-bold text-gray-400 dark:text-gray-500 dark:font-tech uppercase tracking-widest">{t.textOpacity}</label>
+                                 <span className="text-[10px] font-bold text-gray-700 dark:text-white">{Math.round((activeText.opacity || 1) * 100)}%</span>
+                             </div>
+                             <input type="range" min={0} max={1} step={0.05} value={activeText.opacity ?? 1} onChange={(e) => onUpdateTextLayer(activeText.id, { opacity: Number(e.target.value) })} className="w-full accent-pink-500 dark:accent-cyan-500 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none" />
+                         </div>
+                     </div>
+                 )}
+             </div>
+
              <div className="pt-4">
                <button onClick={() => onDeleteText(activeText.id)} className="w-full py-3 rounded-xl dark:rounded-md border border-red-100 dark:border-red-900/30 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 dark:font-tech uppercase tracking-wide">
                  <Trash2 size={14} /> {t.deleteText}
                </button>
              </div>
-          </div>
+          </>
         ) : (
           <div className="pt-12 flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-600">
              <div className="w-16 h-16 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center mb-4 border border-dashed border-gray-200 dark:border-white/10">
@@ -297,14 +424,8 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
             {renderSectionHeader(t.smartCrop, <LayoutTemplate size={14} />, creativeSections.smartCrop, () => toggleCreativeSection('smartCrop'))}
             {creativeSections.smartCrop && (
                 <div className="pl-2 pr-1 animate-slide-down">
-                    <div className="grid grid-cols-3 gap-2 pt-2 pb-4">
-                        {[
-                            { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={14}/>, color: 'hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50' },
-                            { label: t.postIG, val: 1, icon: <ImageIcon size={14}/>, color: 'hover:text-pink-500 hover:border-pink-200 hover:bg-pink-50' },
-                            { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={14} className="rotate-90"/>, color: 'hover:text-purple-500 hover:border-purple-200 hover:bg-purple-50' },
-                            { label: t.thumbYT, val: 16/9, icon: <Tv size={14}/>, color: 'hover:text-red-500 hover:border-red-200 hover:bg-red-50' },
-                            { label: t.portrait, val: 3/4, icon: <ImageIcon size={14}/>, color: 'hover:text-emerald-500 hover:border-emerald-200 hover:bg-emerald-50' }
-                        ].map((item, idx) => (
+                    <div className="grid grid-cols-2 gap-2 pt-2 pb-4">
+                        {SMART_CROPS.map((item, idx) => (
                             <button 
                                 key={idx} 
                                 onClick={() => {
@@ -312,17 +433,22 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                                     setIsCropping(true);
                                 }} 
                                 className={`
-                                    py-2.5 px-1 flex flex-col items-center gap-1.5 text-[9px] 
-                                    bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10
+                                    py-3 px-3 flex items-center gap-3 text-[10px] relative overflow-hidden group
+                                    bg-white/50 dark:bg-white/5 border border-transparent
                                     transition-all duration-300 rounded-xl dark:rounded-md 
-                                    hover:-translate-y-0.5 hover:shadow-sm
-                                    dark:hover:bg-cyan-900/20 dark:hover:text-cyan-400 dark:hover:border-cyan-500/30
-                                    ${item.color}
+                                    hover:-translate-y-0.5 hover:shadow-md
+                                    dark:hover:bg-white/10
                                     dark:font-tech uppercase tracking-wide
                                 `}
                             >
-                                {item.icon}
-                                <span className="font-bold">{item.label}</span>
+                                <div className={`
+                                    relative w-8 h-8 flex-shrink-0 rounded-md border-2 flex items-center justify-center
+                                    ${item.bg} ${item.border} ${item.color}
+                                `}>
+                                    {/* Aspect Ratio Preview Box */}
+                                    <div className={`w-full border-2 border-current rounded-sm opacity-60 ${item.ratioStyle}`} style={{ maxHeight: '80%', maxWidth: '80%' }}></div>
+                                </div>
+                                <span className="font-bold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">{item.label}</span>
                             </button>
                         ))}
                     </div>
@@ -532,21 +658,30 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         <div className="flex-1 p-5 space-y-8 overflow-y-auto custom-scrollbar">
           <div className="space-y-4">
              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 dark:font-tech">{t.smartCrop}</label>
-             <div className="grid grid-cols-2 gap-2">
-                {[
-                    { label: t.coverFB, val: 820/312, icon: <LayoutTemplate size={14}/> },
-                    { label: t.postIG, val: 1, icon: <ImageIcon size={14}/> },
-                    { label: t.storyIG, val: 9/16, icon: <LayoutTemplate size={14} className="rotate-90"/> },
-                    { label: t.thumbYT, val: 16/9, icon: <Tv size={14}/> },
-                    { label: t.landscape, val: 16/9, icon: <ImageIcon size={14}/> },
-                    { label: t.portrait, val: 4/3, icon: <ImageIcon size={14}/> }
-                ].map((item, idx) => (
-                    <button key={idx} onClick={() => setCropParams(prev => ({ ...prev, aspect: item.val }))} className={`py-3 px-3 flex items-center gap-3 text-[10px] transition-all ${cropParams.aspect === item.val ? 'bg-pink-500 text-white dark:bg-cyan-600 dark:text-black shadow-md' : 'bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50'} rounded-xl dark:rounded-md dark:font-tech uppercase font-bold tracking-wide`}>
-                        {item.icon}
-                        <span>{item.label}</span>
+             <div className="grid grid-cols-2 gap-3">
+                {SMART_CROPS.map((item, idx) => (
+                    <button 
+                        key={idx} 
+                        onClick={() => setCropParams(prev => ({ ...prev, aspect: item.val }))}
+                        className={`
+                            py-3 px-3 flex items-center gap-3 text-[10px] relative overflow-hidden group
+                            bg-white/50 dark:bg-white/5 border border-transparent
+                            transition-all duration-300 rounded-xl dark:rounded-md 
+                            hover:-translate-y-0.5 hover:shadow-md
+                            dark:hover:bg-white/10
+                            ${cropParams.aspect === item.val ? 'ring-2 ring-pink-400 dark:ring-cyan-400 bg-pink-50 dark:bg-white/10' : ''}
+                            dark:font-tech uppercase tracking-wide
+                        `}
+                    >
+                        <div className={`
+                            relative w-8 h-8 flex-shrink-0 rounded-md border-2 flex items-center justify-center
+                            ${item.bg} ${item.border} ${item.color}
+                        `}>
+                            <div className={`w-full border-2 border-current rounded-sm opacity-60 ${item.ratioStyle}`} style={{ maxHeight: '80%', maxWidth: '80%' }}></div>
+                        </div>
+                        <span className="font-bold text-gray-600 dark:text-gray-300 group-hover:text-black dark:group-hover:text-white">{item.label}</span>
                     </button>
                 ))}
-                <button onClick={() => setCropParams(prev => ({ ...prev, aspect: null }))} className={`col-span-2 py-3 text-[10px] font-bold border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-xl dark:rounded-md hover:bg-gray-50 dark:hover:bg-white/5 uppercase tracking-wide`}>{t.original}</button>
              </div>
           </div>
 

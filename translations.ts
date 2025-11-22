@@ -94,6 +94,13 @@ export const translations = {
     textStyle: "Style",
     deleteText: "Delete Text",
     noTextSelected: "Select text on canvas to edit",
+    textSettings: "Settings",
+    textEffects: "Effects",
+    textBg: "Background",
+    textStroke: "Outline",
+    textShadow: "Shadow",
+    textOpacity: "Opacity",
+    textSpacing: "Spacing",
     
     // Zoom Controls
     zoomIn: "Zoom In",
@@ -294,6 +301,13 @@ export const translations = {
     textStyle: "Kiểu chữ",
     deleteText: "Xóa chữ",
     noTextSelected: "Chọn chữ trên ảnh để sửa",
+    textSettings: "Cài đặt",
+    textEffects: "Hiệu ứng",
+    textBg: "Màu nền",
+    textStroke: "Viền chữ",
+    textShadow: "Bóng đổ",
+    textOpacity: "Độ mờ",
+    textSpacing: "Khoảng cách",
     
     // Zoom Controls
     zoomIn: "Phóng to",
