@@ -30,6 +30,7 @@ interface FilterControlsProps {
   setActiveTab: (tab: 'ai' | 'manual' | 'text' | 'creative') => void;
   onAddText: (type: 'heading' | 'body') => void;
   activeTextId: string | null;
+  setActiveTextId: (id: string | null) => void;
   textLayers: TextLayer[];
   onUpdateTextLayer: (id: string, updates: Partial<TextLayer>) => void;
   onDeleteText: (id: string) => void;
@@ -52,13 +53,17 @@ interface FilterControlsProps {
   stickers: StickerLayer[];
   onMoveLayer: (id: string, type: 'text' | 'sticker', direction: 'up' | 'down') => void;
   onDeleteSticker: (id: string) => void;
+  
+  // Unified Layer Order
+  layerOrder?: {id: string, type: 'text' | 'sticker'}[];
 }
 
 export const FilterControls: React.FC<FilterControlsProps> = ({ 
-  filters, setFilters, onReset, t, language, isCropping, setIsCropping, cropParams, setCropParams, onApplyCrop, onAddToHistory, currentImageBase64, onUndo, onRedo, canUndo, canRedo, histogramData, onRemoveImage, activeTab, setActiveTab, onAddText, activeTextId, textLayers, onUpdateTextLayer, onDeleteText,
+  filters, setFilters, onReset, t, language, isCropping, setIsCropping, cropParams, setCropParams, onApplyCrop, onAddToHistory, currentImageBase64, onUndo, onRedo, canUndo, canRedo, histogramData, onRemoveImage, activeTab, setActiveTab, onAddText, activeTextId, setActiveTextId, textLayers, onUpdateTextLayer, onDeleteText,
   onApplyPreset, onAddSticker, activeFrame, onSetFrame,
   brushSettings, setBrushSettings, onToggleBrush, onClearDrawings,
-  activeStickerId, setActiveStickerId, stickers, onMoveLayer, onDeleteSticker
+  activeStickerId, setActiveStickerId, stickers, onMoveLayer, onDeleteSticker,
+  layerOrder = []
 }) => {
   // Manual Tools Sections
   const [sections, setSections] = useState({
@@ -461,43 +466,51 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 
          <div className="w-full h-px bg-gray-100 dark:bg-white/5"></div>
 
-         {/* Layer Manager */}
+         {/* Unified Layer Manager */}
          <div>
              {renderSectionHeader(t.layers, <Layers size={14} />, creativeSections.layers, () => toggleCreativeSection('layers'))}
              {creativeSections.layers && (
                 <div className="pl-2 pr-1 animate-slide-down">
-                    {stickers.length === 0 && textLayers.length === 0 ? (
+                    {layerOrder.length === 0 ? (
                         <p className="text-[10px] text-gray-400 italic pl-2 py-2">{t.noLayers}</p>
                     ) : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                            {/* Render Stickers */}
-                            {stickers.map(s => (
-                                <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
-                                    <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-3 flex-1 text-left">
-                                        <span className="text-lg leading-none ml-1">{s.content}</span>
-                                        <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t.stickerLayer}</span>
-                                    </button>
-                                    <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
-                                        <button onClick={() => onMoveLayer(s.id, 'sticker', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
-                                        <button onClick={() => onMoveLayer(s.id, 'sticker', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
-                                        <button onClick={() => onDeleteSticker(s.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
-                                    </div>
-                                </div>
-                            ))}
-                            {/* Render Text */}
-                            {textLayers.map(l => (
-                                <div key={l.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeTextId === l.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
-                                    <button onClick={() => {}} className="flex items-center gap-3 flex-1 text-left overflow-hidden">
-                                        <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500"><Type size={12} /></div>
-                                        <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate">{l.text}</span>
-                                    </button>
-                                    <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
-                                        <button onClick={() => onMoveLayer(l.id, 'text', 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
-                                        <button onClick={() => onMoveLayer(l.id, 'text', 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
-                                        <button onClick={() => onDeleteText(l.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 flex flex-col-reverse">
+                            {/* We map in reverse because layerOrder is bottom-to-top (render order), but UI shows top-to-bottom */}
+                            {layerOrder.map((item) => {
+                                if (item.type === 'sticker') {
+                                    const s = stickers.find(sticker => sticker.id === item.id);
+                                    if (!s) return null;
+                                    return (
+                                        <div key={s.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeStickerId === s.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
+                                            <button onClick={() => setActiveStickerId(s.id)} className="flex items-center gap-3 flex-1 text-left">
+                                                {s.type === 'image' ? <ImageIcon size={16} /> : <span className="text-lg leading-none ml-1">{s.content}</span>}
+                                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t.stickerLayer}</span>
+                                            </button>
+                                            <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
+                                                <button onClick={() => onMoveLayer(s.id, 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
+                                                <button onClick={() => onMoveLayer(s.id, 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
+                                                <button onClick={() => onDeleteSticker(s.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                } else {
+                                    const l = textLayers.find(layer => layer.id === item.id);
+                                    if (!l) return null;
+                                    return (
+                                        <div key={l.id} className={`flex items-center justify-between p-2 rounded-xl dark:rounded-md border transition-all ${activeTextId === l.id ? 'border-pink-400 bg-pink-50/50 dark:border-cyan-400 dark:bg-cyan-900/20' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5 hover:border-pink-200 dark:hover:border-white/20'}`}>
+                                            <button onClick={() => setActiveTextId(l.id)} className="flex items-center gap-3 flex-1 text-left overflow-hidden">
+                                                <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500"><Type size={12} /></div>
+                                                <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate">{l.text}</span>
+                                            </button>
+                                            <div className="flex items-center gap-1 opacity-60 hover:opacity-100">
+                                                <button onClick={() => onMoveLayer(l.id, 'up')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowUp size={12}/></button>
+                                                <button onClick={() => onMoveLayer(l.id, 'down')} className="p-1 hover:bg-gray-200 dark:hover:bg-white/20 rounded-md transition-colors"><ArrowDown size={12}/></button>
+                                                <button onClick={() => onDeleteText(l.id)} className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"><Trash2 size={12}/></button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                            })}
                         </div>
                     )}
                  </div>
@@ -602,7 +615,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 
       {/* SCROLLABLE CONTENT AREA */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-0 relative scroll-smooth">
-        {activeTab === 'ai' && <div className="h-full animate-fade-in"><AIPanel currentImageBase64={currentImageBase64} t={t} language={language} setFilters={setFilters} onAddToHistory={onAddToHistory} setDetectedObjects={() => {}} /></div>}
+        {activeTab === 'ai' && <div className="h-full animate-fade-in"><AIPanel currentImageBase64={currentImageBase64} t={t} language={language} setFilters={setFilters} onAddToHistory={onAddToHistory} setDetectedObjects={() => {}} onAddSticker={onAddSticker} /></div>}
         
         {activeTab === 'creative' && renderCreativePanel()}
 

@@ -1,7 +1,8 @@
 
+
 export const translations = {
   en: {
-    appTitle: "SmartLens AI",
+    appTitle: "MakeBetter",
     upload: "Upload",
     download: "Download",
     noImageTitle: "No image loaded",
@@ -201,7 +202,7 @@ export const translations = {
     releaseToUpload: "Release to upload"
   },
   vi: {
-    appTitle: "SmartLens AI",
+    appTitle: "MakeBetter",
     upload: "Tải lên",
     download: "Tải xuống",
     noImageTitle: "Chưa có ảnh",

@@ -6,6 +6,15 @@ import { CanvasEditor } from './components/CanvasEditor';
 import { FilterState, DEFAULT_FILTERS, HistogramData, TextLayer, StickerLayer, FrameType, DrawingPath, BrushSettings, DetectedObject } from './types';
 import { translations, Language } from './translations';
 
+// Define a complete snapshot of the app state for history
+interface HistorySnapshot {
+  filters: FilterState;
+  textLayers: TextLayer[];
+  stickers: StickerLayer[];
+  drawingPaths: DrawingPath[];
+  layerOrder: {id: string, type: 'text' | 'sticker'}[];
+}
+
 const App: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
@@ -21,40 +30,41 @@ const App: React.FC = () => {
   // Export Modal
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportConfig, setExportConfig] = useState({
-      name: 'smartlens-edit',
+      name: 'makebetter-edit',
       format: 'image/png',
       quality: 0.9
   });
   
-  // History State
-  const [history, setHistory] = useState<FilterState[]>([DEFAULT_FILTERS]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  
-  // Crop State
-  const [isCropping, setIsCropping] = useState(false);
-  const [cropParams, setCropParams] = useState<{ zoom: number; aspect: number | null }>({ zoom: 1, aspect: null });
-  const [cropTrigger, setCropTrigger] = useState(0);
-
-  // Text Layers State
+  // State definitions
   const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
   const [activeTextId, setActiveTextId] = useState<string | null>(null);
-
-  // Creative State
   const [stickers, setStickers] = useState<StickerLayer[]>([]);
   const [activeStickerId, setActiveStickerId] = useState<string | null>(null);
   const [activeFrame, setActiveFrame] = useState<FrameType>('none');
-  
-  // Brush State
   const [drawingPaths, setDrawingPaths] = useState<DrawingPath[]>([]);
+  const [layerOrder, setLayerOrder] = useState<{id: string, type: 'text' | 'sticker'}[]>([]);
   const [brushSettings, setBrushSettings] = useState<BrushSettings>({
     color: '#ffffff',
     size: 10,
     opacity: 1,
     isEnabled: false
   });
-
-  // AI Detection State (New)
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
+
+  // History State - Now stores full Snapshots
+  const [history, setHistory] = useState<HistorySnapshot[]>([{
+      filters: DEFAULT_FILTERS,
+      textLayers: [],
+      stickers: [],
+      drawingPaths: [],
+      layerOrder: []
+  }]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  
+  // Crop State
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropParams, setCropParams] = useState<{ zoom: number; aspect: number | null }>({ zoom: 1, aspect: null });
+  const [cropTrigger, setCropTrigger] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = translations[language];
@@ -70,19 +80,58 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   // --- History Management ---
+  
+  // Helper to push a new snapshot to history
+  const pushToHistory = (snapshotOverride?: Partial<HistorySnapshot>) => {
+      const currentSnapshot: HistorySnapshot = {
+          filters,
+          textLayers,
+          stickers,
+          drawingPaths,
+          layerOrder,
+          ...snapshotOverride
+      };
+
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(currentSnapshot);
+      
+      // Limit history size to 50 steps
+      if (newHistory.length > 50) newHistory.shift();
+      
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+  };
+
+  // Called by sliders/filters (only updates filters in snapshot)
   const handleAddToHistory = useCallback(() => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(filters);
-    if (newHistory.length > 50) newHistory.shift();
-    else setHistoryIndex(newHistory.length - 1);
-    setHistory(newHistory);
-  }, [filters, history, historyIndex]);
+      // We use a timeout to ensure we capture the latest state after React updates
+      // However, for sliders, we often call this explicitly. 
+      // To be safe, we construct the snapshot with current state refs if possible, 
+      // but since we don't have refs for everything, we rely on the closure or pass updated values.
+      
+      // Note: This function is usually passed to FilterControls for onMouseUp.
+      // At that point, 'filters' state might be stale in this closure if not careful.
+      // But since handleAddToHistory is in dependency array of useCallback with [filters], it should be fresh.
+      
+      pushToHistory();
+  }, [filters, textLayers, stickers, drawingPaths, layerOrder, history, historyIndex]);
 
   const handleUndo = () => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setFilters(history[newIndex]);
+      const snapshot = history[newIndex];
+      
+      // Restore all states
+      setFilters(snapshot.filters);
+      setTextLayers(snapshot.textLayers);
+      setStickers(snapshot.stickers);
+      setDrawingPaths(snapshot.drawingPaths);
+      setLayerOrder(snapshot.layerOrder);
+      
+      // Reset active selections to avoid ghost edits
+      setActiveTextId(null);
+      setActiveStickerId(null);
     }
   };
 
@@ -90,26 +139,50 @@ const App: React.FC = () => {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setFilters(history[newIndex]);
+      const snapshot = history[newIndex];
+      
+      setFilters(snapshot.filters);
+      setTextLayers(snapshot.textLayers);
+      setStickers(snapshot.stickers);
+      setDrawingPaths(snapshot.drawingPaths);
+      setLayerOrder(snapshot.layerOrder);
     }
   };
 
   const handleResetAll = () => {
+    const emptySnapshot: HistorySnapshot = {
+        filters: DEFAULT_FILTERS,
+        textLayers: [],
+        stickers: [],
+        drawingPaths: [],
+        layerOrder: []
+    };
+    
     setFilters(DEFAULT_FILTERS);
+    setTextLayers([]);
+    setStickers([]);
+    setDrawingPaths([]);
+    setLayerOrder([]);
+    setActiveFrame('none');
+    setDetectedObjects([]);
+    
     const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(DEFAULT_FILTERS);
+    newHistory.push(emptySnapshot);
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
-    setStickers([]);
-    setActiveFrame('none');
-    setDrawingPaths([]);
-    setDetectedObjects([]);
   };
 
   const handleRemoveImage = () => {
     setImageSrc(null);
+    const emptySnapshot: HistorySnapshot = {
+        filters: DEFAULT_FILTERS,
+        textLayers: [],
+        stickers: [],
+        drawingPaths: [],
+        layerOrder: []
+    };
     setFilters(DEFAULT_FILTERS);
-    setHistory([DEFAULT_FILTERS]);
+    setHistory([emptySnapshot]);
     setHistoryIndex(0);
     setProcessedImage(null);
     setIsCropping(false);
@@ -120,6 +193,7 @@ const App: React.FC = () => {
     setActiveTextId(null);
     setStickers([]);
     setActiveStickerId(null);
+    setLayerOrder([]);
     setActiveFrame('none');
     setDrawingPaths([]);
     setDetectedObjects([]);
@@ -130,7 +204,8 @@ const App: React.FC = () => {
   const handleApplyPreset = (presetFilters: Partial<FilterState>) => {
     setFilters(prev => {
       const newState = { ...prev, ...presetFilters, rotate: prev.rotate, flipH: prev.flipH };
-      setTimeout(handleAddToHistory, 0);
+      // Determine new state immediately for history
+      pushToHistory({ filters: newState });
       return newState;
     });
   };
@@ -141,8 +216,15 @@ const App: React.FC = () => {
       reader.onload = (e) => {
         if (typeof e.target?.result === 'string') {
           setImageSrc(e.target.result);
+          const initialSnapshot: HistorySnapshot = {
+            filters: DEFAULT_FILTERS,
+            textLayers: [],
+            stickers: [],
+            drawingPaths: [],
+            layerOrder: []
+          };
           setFilters(DEFAULT_FILTERS); 
-          setHistory([DEFAULT_FILTERS]); 
+          setHistory([initialSnapshot]); 
           setHistoryIndex(0);
           setProcessedImage(null);
           setIsCropping(false);
@@ -151,6 +233,7 @@ const App: React.FC = () => {
           setViewZoom(1);
           setTextLayers([]);
           setStickers([]);
+          setLayerOrder([]);
           setActiveFrame('none');
           setDrawingPaths([]);
           setDetectedObjects([]);
@@ -210,10 +293,20 @@ const App: React.FC = () => {
       setImageSrc(base64);
       setIsCropping(false);
       setCropParams({ zoom: 1, aspect: null });
-      setHistory([filters]); 
+      
+      // Reset layers on crop apply as coordinates shift
+      const resetSnapshot: HistorySnapshot = {
+        filters: filters, // Keep filters
+        textLayers: [],
+        stickers: [],
+        drawingPaths: [],
+        layerOrder: []
+      };
+      setHistory([resetSnapshot]); 
       setHistoryIndex(0);
       setTextLayers([]);
       setStickers([]); 
+      setLayerOrder([]);
       setDrawingPaths([]);
       setDetectedObjects([]);
     } else {
@@ -233,12 +326,31 @@ const App: React.FC = () => {
       fontSize: type === 'heading' ? 60 : 30, color: '#ffffff',
       fontFamily: 'Arial', fontWeight: type === 'heading' ? 'bold' : 'normal', fontStyle: 'normal'
     };
-    setTextLayers([...textLayers, newLayer]);
+    const newTextLayers = [...textLayers, newLayer];
+    const newOrder = [...layerOrder, { id: newLayer.id, type: 'text' as const }];
+    
+    setTextLayers(newTextLayers);
+    setLayerOrder(newOrder);
     setActiveTextId(newLayer.id);
+    
+    pushToHistory({ textLayers: newTextLayers, layerOrder: newOrder });
   };
 
-  const handleUpdateTextLayer = (id: string, updates: Partial<TextLayer>) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
-  const handleDeleteText = (id: string) => { setTextLayers(prev => prev.filter(l => l.id !== id)); if (activeTextId === id) setActiveTextId(null); };
+  const handleUpdateTextLayer = (id: string, updates: Partial<TextLayer>) => {
+      const newLayers = textLayers.map(l => l.id === id ? { ...l, ...updates } : l);
+      setTextLayers(newLayers);
+      // Optimization: Don't push to history on every keystroke/slide, usually done onBlur or MouseUp.
+      // But for simplicity here we might let the user manual actions trigger specific history saves or rely on the parent calling onAddToHistory
+  };
+  
+  const handleDeleteText = (id: string) => { 
+      const newLayers = textLayers.filter(l => l.id !== id);
+      const newOrder = layerOrder.filter(l => l.id !== id);
+      setTextLayers(newLayers); 
+      setLayerOrder(newOrder);
+      if (activeTextId === id) setActiveTextId(null); 
+      pushToHistory({ textLayers: newLayers, layerOrder: newOrder });
+  };
 
   const handleAddSticker = (content: string) => {
      setBrushSettings(prev => ({ ...prev, isEnabled: false }));
@@ -251,8 +363,14 @@ const App: React.FC = () => {
          y: 100 + stickers.length * 10,
          size: 80
      };
-     setStickers([...stickers, newSticker]);
+     const newStickers = [...stickers, newSticker];
+     const newOrder = [...layerOrder, { id: newSticker.id, type: 'sticker' as const }];
+     
+     setStickers(newStickers);
+     setLayerOrder(newOrder);
      setActiveStickerId(newSticker.id);
+     
+     pushToHistory({ stickers: newStickers, layerOrder: newOrder });
   };
 
   const handleUpdateStickerPosition = (id: string, x: number, y: number) => {
@@ -260,38 +378,42 @@ const App: React.FC = () => {
   };
   
   const handleDeleteSticker = (id: string) => {
-      setStickers(prev => prev.filter(s => s.id !== id));
-      if (activeStickerId === id) setActiveStickerId(null);
-  };
-
-  const handleMoveLayer = (id: string, type: 'text' | 'sticker', direction: 'up' | 'down') => {
-    if (type === 'text') {
-      const index = textLayers.findIndex(l => l.id === id);
-      if (index === -1) return;
-      const newLayers = [...textLayers];
-      if (direction === 'up' && index < textLayers.length - 1) {
-        [newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]];
-      } else if (direction === 'down' && index > 0) {
-        [newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]];
-      }
-      setTextLayers(newLayers);
-    } else {
-      const index = stickers.findIndex(s => s.id === id);
-      if (index === -1) return;
-      const newStickers = [...stickers];
-      if (direction === 'up' && index < stickers.length - 1) {
-        [newStickers[index], newStickers[index + 1]] = [newStickers[index + 1], newStickers[index]];
-      } else if (direction === 'down' && index > 0) {
-        [newStickers[index], newStickers[index - 1]] = [newStickers[index - 1], newStickers[index]];
-      }
+      const newStickers = stickers.filter(s => s.id !== id);
+      const newOrder = layerOrder.filter(s => s.id !== id);
       setStickers(newStickers);
-    }
+      setLayerOrder(newOrder);
+      if (activeStickerId === id) setActiveStickerId(null);
+      pushToHistory({ stickers: newStickers, layerOrder: newOrder });
   };
 
-  const handleAddDrawingPath = (path: DrawingPath) => {
-    setDrawingPaths(prev => [...prev, path]);
+  const handleMoveLayer = (id: string, direction: 'up' | 'down') => {
+      const index = layerOrder.findIndex(l => l.id === id);
+      if (index === -1) return;
+      
+      const newOrder = [...layerOrder];
+      if (direction === 'up' && index < newOrder.length - 1) {
+          [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+      } 
+      else if (direction === 'down' && index > 0) {
+          [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]];
+      }
+      setLayerOrder(newOrder);
+      pushToHistory({ layerOrder: newOrder });
   };
-  const handleClearDrawings = () => setDrawingPaths([]);
+
+  // --- Drawing Handler with History ---
+  const handleAddDrawingPath = (path: DrawingPath) => {
+    const newPaths = [...drawingPaths, path];
+    setDrawingPaths(newPaths);
+    // Immediately save this stroke to history so Undo works for it
+    pushToHistory({ drawingPaths: newPaths });
+  };
+  
+  const handleClearDrawings = () => {
+      setDrawingPaths([]);
+      pushToHistory({ drawingPaths: [] });
+  };
+  
   const handleToggleBrush = (enabled: boolean) => {
     setBrushSettings(prev => ({ ...prev, isEnabled: enabled }));
     if (enabled) { setActiveTextId(null); setActiveStickerId(null); }
@@ -421,7 +543,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                    <h1 className={`text-2xl tracking-tight font-black bg-clip-text text-transparent ${isDarkMode ? 'font-tech bg-gradient-to-r from-white to-gray-400 tracking-widest uppercase' : 'bg-gradient-to-r from-gray-800 to-gray-600'}`}>SmartLens</h1>
+                    <h1 className={`text-2xl tracking-tight font-black bg-clip-text text-transparent ${isDarkMode ? 'font-tech bg-gradient-to-r from-white to-gray-400 tracking-widest uppercase' : 'bg-gradient-to-r from-gray-800 to-gray-600'}`}>MakeBetter</h1>
                 </div>
               </div>
             </div>
@@ -456,11 +578,12 @@ const App: React.FC = () => {
                 onUndo={handleUndo} onRedo={handleRedo} canUndo={historyIndex > 0} canRedo={historyIndex < history.length - 1}
                 histogramData={histogramData} onRemoveImage={handleRemoveImage}
                 activeTab={activeTab} setActiveTab={setActiveTab}
-                onAddText={handleAddText} activeTextId={activeTextId} textLayers={textLayers} onUpdateTextLayer={handleUpdateTextLayer} onDeleteText={handleDeleteText}
+                onAddText={handleAddText} activeTextId={activeTextId} setActiveTextId={setActiveTextId} textLayers={textLayers} onUpdateTextLayer={handleUpdateTextLayer} onDeleteText={handleDeleteText}
                 onApplyPreset={handleApplyPreset} onAddSticker={handleAddSticker} activeFrame={activeFrame} onSetFrame={setActiveFrame}
                 brushSettings={brushSettings} setBrushSettings={setBrushSettings} onToggleBrush={handleToggleBrush} onClearDrawings={handleClearDrawings}
                 activeStickerId={activeStickerId} setActiveStickerId={setActiveStickerId} stickers={stickers}
                 onMoveLayer={handleMoveLayer} onDeleteSticker={handleDeleteSticker}
+                layerOrder={layerOrder}
              />
           </div>
 
@@ -497,11 +620,12 @@ const App: React.FC = () => {
                     imageSrc={imageSrc} filters={filters} onImageProcessed={handleImageProcessed} t={t}
                     isCropping={isCropping} cropParams={cropParams} cropTrigger={cropTrigger}
                     onHistogramData={setHistogramData} viewZoom={viewZoom}
-                    textLayers={textLayers} activeTextId={activeTextId} onSelectText={setActiveTextId} onUpdateTextPosition={(id, x, y) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, x, y } : l))}
-                    stickers={stickers} activeStickerId={activeStickerId} onSelectSticker={setActiveStickerId} activeFrame={activeFrame} onUpdateStickerPosition={handleUpdateStickerPosition}
+                    textLayers={textLayers} activeTextId={activeTextId} onSelectText={setActiveTextId} onUpdateTextPosition={(id, x, y) => setTextLayers(prev => prev.map(l => l.id === id ? { ...l, x, y } : l))} onDeleteText={handleDeleteText}
+                    stickers={stickers} activeStickerId={activeStickerId} onSelectSticker={setActiveStickerId} activeFrame={activeFrame} onUpdateStickerPosition={handleUpdateStickerPosition} onDeleteSticker={handleDeleteSticker}
                     drawingPaths={drawingPaths} brushSettings={brushSettings} onAddDrawingPath={handleAddDrawingPath}
                     isComparing={isComparing}
                     detectedObjects={detectedObjects}
+                    layerOrder={layerOrder}
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center p-8">
